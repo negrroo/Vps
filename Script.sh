@@ -27,6 +27,7 @@ dpkg-reconfigure tzdata
 Updates() {
 # Debian Environment setup
 apt-get update -y; apt-get upgrade -y;
+CronMis
 }
 
 #Installition
@@ -39,7 +40,15 @@ apt install -y dnsutils; apt install -y nftables;
 Dependencies() {
 # Requirements before installation the falcon script
 apt install -y bc; apt install -y jq;
+}
 
+CronMis() {
+# install cron if missing
+command -v crontab >/dev/null 2>&1 || {
+    apt install -y cron
+    systemctl enable cron
+    systemctl start cron
+}
 }
 
 #Finalizing
