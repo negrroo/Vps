@@ -485,7 +485,7 @@ printf "%-7s %0s %10s %12s\n" ------ -------- ------ ------
 
 else
 
-printf "%-7s %-10s %-10s\n" "USER ($online_count)" SESSIONS LAST_LOGIN
+printf "%-7s %-10s %-10s\n" "USER($online_count)" SESSIONS LAST_LOGIN
 printf "%-7s %-10s %-10s\n" ---- -------- ----------
 
 fi
