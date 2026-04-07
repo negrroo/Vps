@@ -19,6 +19,11 @@ Cond=$1
 Specifications() {
 Debian 11
 
+# How to Setup
+wget -O Script.sh https://raw.githubusercontent.com/negrroo/Vps/main/Script.sh && chmod +x Script.sh
+# Then
+./Script.sh Digital/Akami - Falcon/Montazer/NTVIP/Dragon
+
 # Time Change Step 1 or Step 2
 dpkg-reconfigure tzdata
 }
