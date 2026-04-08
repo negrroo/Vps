@@ -78,6 +78,12 @@ ocsp2.apple.com
 ocsp.apple.com
 # add or remove domains here
 EOF
+BlockingDomains2
+BlockingDomains3
+BlockingDomains4
+BlockingDomains5
+BlockingDomains6
+BlockingDomains7
 }
 
 BlockingDomains2() {
@@ -272,6 +278,9 @@ Expired1() {
 sudo mkdir -p /var/lib/ssh-expiry
 sudo touch /var/lib/ssh-expiry/expired_notified.list
 sudo chmod 600 /var/lib/ssh-expiry/expired_notified.list
+Expired2
+Expired3
+Expired4
 }
 
 Expired2() {
@@ -347,6 +356,8 @@ mkdir -p "$LOGDIR"
 
 echo "$DATE|$IP" > "$LOGFILE"
 EOF
+LastLogin2
+LastLogin3
 }
 
 LastLogin2() {
@@ -511,6 +522,7 @@ printf "\n"
 
 exit 0
 EOF
+Monitor2
 }
 
 Monitor2() {
@@ -562,6 +574,8 @@ mv "$TMP_FILE" "$STATE_FILE"
 
 exit 0
 EOF
+Daily2
+Daily3
 }
 
 Daily2() {
@@ -587,6 +601,8 @@ done
 
 exit 0
 EOF
+Monthly2
+Monthly3
 }
 
 Monthly2() {
@@ -744,6 +760,8 @@ rm -f "$TMP_SORT" "$TMP_BASE"
 
 exit 0
 EOF
+Usage2
+Usage3
 }
 
 Usage2() {
@@ -759,30 +777,9 @@ Akami() {
 Updates
 Dependencies
 BlockingDomains1
-BlockingDomains2
-BlockingDomains3
-BlockingDomains4
-BlockingDomains5
-BlockingDomains6
-BlockingDomains7
 Expired1
-Expired2
-Expired3
-Expired4
 LastLogin1
-LastLogin2
-LastLogin3
 Monitor1
-Monitor2
-Daily1
-Daily2
-Daily3
-Monthly1
-Monthly2
-Monthly3
-Usage1
-Usage2
-Usage3
 }
 
 Digital() {
@@ -790,30 +787,9 @@ Updates
 Firewall
 Dependencies
 BlockingDomains1
-BlockingDomains2
-BlockingDomains3
-BlockingDomains4
-BlockingDomains5
-BlockingDomains6
-BlockingDomains7
 Expired1
-Expired2
-Expired3
-Expired4
 LastLogin1
-LastLogin2
-LastLogin3
 Monitor1
-Monitor2
-Daily1
-Daily2
-Daily3
-Monthly1
-Monthly2
-Monthly3
-Usage1
-Usage2
-Usage3
 }
 
 # Custom Proxy 8080
@@ -955,6 +931,9 @@ if __name__ == '__main__':
         server.stop()
 
 EOF
+Proxy2
+Proxy3
+Proxy4
 }
 
 Proxy2() {
@@ -1017,6 +996,9 @@ done
 
 exit 0
 EOF
+NoFalcon2
+NoFalcon3
+NoFalcon4
 }
 
 NoFalcon2() {
@@ -1047,6 +1029,9 @@ sed -i 's|^\([^#].*reboot.*\)|#\1|' /etc/cron.d/auto_reboot
 
 Falcon() {
 curl -L -o install.sh "https://raw.githubusercontent.com/firewallfalcons/FirewallFalcon-Manager/main/install.sh" && chmod +x install.sh && sudo ./install.sh && rm install.sh
+Daily1
+Monthly1
+Usage1
 Finalizing
 }
 
@@ -1055,13 +1040,7 @@ wget https://raw.githubusercontent.com/MuntazerVpn/ehoop/main/installer -O insta
 Finalizing
 onMontazer
 NoFalcon1
-NoFalcon2
-NoFalcon3
-NoFalcon4
 Proxy1
-Proxy2
-Proxy3
-Proxy4
 }
 
 Dragon() {
@@ -1075,13 +1054,7 @@ apt install -y bzip2 gzip coreutils screen curl unzip && wget https://raw.github
 Finalizing
 onNTVIP
 NoFalcon1
-NoFalcon2
-NoFalcon3
-NoFalcon4
 Proxy1
-Proxy2
-Proxy3
-Proxy4
 }
 
 zNTVIP() {
@@ -1090,13 +1063,7 @@ apt install -y bzip2 gzip coreutils screen curl unzip && wget https://raw.github
 Finalizing
 onNTVIP
 NoFalcon1
-NoFalcon2
-NoFalcon3
-NoFalcon4
 Proxy1
-Proxy2
-Proxy3
-Proxy4
 }
 #
 
