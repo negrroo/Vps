@@ -1126,5 +1126,9 @@ elif [ $Cond == 'NTVIP' ]
 then
 NTVIP
 
+elif [ $Cond == 'zNTVIP' ]
+then
+zNTVIP
+
 fi
 ################################LawRun-END#######################################
