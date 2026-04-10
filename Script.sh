@@ -1037,10 +1037,10 @@ curl -L -o install.sh "https://raw.githubusercontent.com/firewallfalcons/Firewal
 
 Montazer() {
 Finalizing
-onMontazer
 NoFalcon1
 Proxy1
 wget https://raw.githubusercontent.com/MuntazerVpn/ehoop/main/installer -O installer && chmod +x installer && ./installer
+onMontazer
 }
 
 Dragon() {
@@ -1050,20 +1050,20 @@ apt-get update -y; apt-get upgrade -y; wget https://raw.githubusercontent.com/sb
 
 NTVIP() {
 Finalizing
-onNTVIP
 NoFalcon1
 Proxy1
 # sysctl -w net.ipv6.conf.all.disable_ipv6=1 && sysctl -w net.ipv6.conf.default.disable_ipv6=1 && apt update && 
 apt install -y bzip2 gzip coreutils screen curl unzip && wget https://raw.githubusercontent.com/NETWORKTWEAKER/AUTO-SCRIPT/master/setup1.sh && chmod +x setup1.sh && sed -i -e 's/\r$//' setup1.sh && screen -S setup ./setup1.sh
+onNTVIP
 }
 
 zNTVIP() {
 Finalizing
-onNTVIP
 NoFalcon1
 Proxy1
 # sysctl -w net.ipv6.conf.all.disable_ipv6=1 && sysctl -w net.ipv6.conf.default.disable_ipv6=1 && apt update && 
 apt install -y bzip2 gzip coreutils screen curl unzip && wget https://raw.githubusercontent.com/V3SAKURAAIRIV3/Error404/main/setup.sh && chmod +x setup.sh && sed -i -e 's/\r$//' setup.sh && screen -S setup ./setup.sh
+onNTVIP
 }
 #
 
