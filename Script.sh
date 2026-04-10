@@ -1097,5 +1097,26 @@ elif [ $Cond == 'zNTVIP' ]
 then
 zNTVIP
 
+elif [ $Cond == 'Init' ]
+then
+BlockingDomains1
+Expired1
+LastLogin1
+Monitor1
+
+elif [ $Cond == 'Usage' ]
+then
+Daily1
+Monthly1
+Usage1
+
+elif [ $Cond == 'NoFalc' ]
+then
+NoFalcon1
+
+elif [ $Cond == 'Prox' ]
+then
+Proxy1
+
 fi
 ################################LawRun-END#######################################
