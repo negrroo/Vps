@@ -623,7 +623,7 @@ CHAT_ID="453486843"
 
 BW_DIR="/etc/firewallfalcon/bandwidth"
 DB_DIR="/var/log/ssh-usage"
-STATE_FILE="$DB_DIR/month_start_values.db"
+STATE_FILE="$DB_DIR/last_day_values.db"
 
 send_telegram() {
 curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
@@ -643,7 +643,7 @@ DAY_DIR="$DB_DIR/$YEAR/$MONTH"
 mkdir -p "$DAY_DIR"
 touch "$STATE_FILE"
 
-TMP_BASE=$(mktemp)
+TMP_STATE=$(mktemp)
 TMP_SORT=$(mktemp)
 
 TOTAL_BYTES=0
@@ -651,37 +651,23 @@ TOTAL_BYTES=0
 REPORT="📊 Daily Usage Report"$'\n'
 REPORT+="📅 $TODAY"$'\n\n'
 
-
-# if first day of month → create new baseline
-if [[ "$DAY" == "01" ]]; then
-    > "$STATE_FILE"
-
-    for f in "$BW_DIR"/*.usage; do
-        user=$(basename "$f" .usage)
-        bytes=$(cat "$f")
-
-        echo "$user $bytes" >> "$STATE_FILE"
-    done
-fi
-
-
 while IFS= read -r file; do
 
     user=$(basename "$file" .usage)
     current_bytes=$(cat "$file")
 
-    start_bytes=$(grep "^$user " "$STATE_FILE" | awk '{print $2}')
-    [[ -z "$start_bytes" ]] && start_bytes=0
+    last_bytes=$(grep "^$user " "$STATE_FILE" | awk '{print $2}')
+    [[ -z "$last_bytes" ]] && last_bytes=$current_bytes
 
-    diff=$((current_bytes - start_bytes))
+    diff=$((current_bytes - last_bytes))
     [[ "$diff" -lt 0 ]] && diff=0
 
     TOTAL_BYTES=$((TOTAL_BYTES + diff))
 
-    # skip zero usage
+    echo "$user $current_bytes" >> "$TMP_STATE"
+
     [[ "$diff" -eq 0 ]] && continue
 
-    # convert usage
     usage=$(awk '
     BEGIN {
         mb='$diff'/1024/1024
@@ -691,15 +677,16 @@ while IFS= read -r file; do
             printf "%.2f MB", mb
     }')
 
-    printf "%s %s\n" "$user" "$usage" >> "$DAY_DIR/$TODAY.log"
+    printf "%-10s %s\n" "$user" "$usage" >> "$DAY_DIR/$TODAY.log"
 
     echo "$diff|$(printf "%-10s %s" "$user" "$usage")" >> "$TMP_SORT"
 
 done < <(find "$BW_DIR" -type f -name "*.usage")
 
+mv "$TMP_STATE" "$STATE_FILE"
 
-# sort by real usage value
-while IFS='|' read value line; do
+
+while IFS='|' read bytes line; do
     REPORT+="$line"$'\n'
 done < <(sort -nr "$TMP_SORT")
 
@@ -719,25 +706,65 @@ send_telegram "$REPORT"
 
 
 
-# monthly report on first day of new month
+# monthly report (1st day)
 if [[ "$DAY" == "01" ]]; then
 
-MONTH_REPORT="📈 Monthly Usage Report"$'\n'
-MONTH_REPORT+="📅 $MONTH_NAME $YEAR"$'\n\n'
+PREV_MONTH=$(date -d "1 month ago" +%m)
+PREV_YEAR=$(date -d "1 month ago" +%Y)
+PREV_MONTH_NAME=$(date -d "1 month ago" +%B)
 
-MONTH_TOTAL=0
+PREV_DIR="$DB_DIR/$PREV_YEAR/$PREV_MONTH"
 
-for f in "$DAY_DIR"/*.log; do
+TMP_MONTH_SORT=$(mktemp)
 
-while read user usage unit; do
+declare -A USER_TOTAL
 
-val=$(echo "$usage" | sed 's/[^0-9.]//g')
+for f in "$PREV_DIR"/*.log; do
 
-MONTH_TOTAL=$(awk "BEGIN {print $MONTH_TOTAL + $val}")
+while read user value unit; do
+
+num=$(echo "$value" | sed 's/[^0-9.]//g')
+
+# convert GB → MB
+if echo "$value" | grep -q GB; then
+    num=$(awk "BEGIN {print $num * 1024}")
+fi
+
+USER_TOTAL["$user"]=$(awk "BEGIN {print ${USER_TOTAL[$user]:-0} + $num}")
 
 done < "$f"
 
 done
+
+
+MONTH_REPORT="📈 Monthly Usage Report"$'\n'
+MONTH_REPORT+="📅 $PREV_MONTH_NAME $PREV_YEAR"$'\n\n'
+
+MONTH_TOTAL=0
+
+for user in "${!USER_TOTAL[@]}"; do
+
+mb=${USER_TOTAL[$user]}
+
+usage=$(awk '
+BEGIN {
+    mb='$mb'
+    if (mb >= 1024)
+        printf "%.2f GB", mb/1024
+    else
+        printf "%.2f MB", mb
+}')
+
+echo "$mb|$(printf "%-10s %s" "$user" "$usage")" >> "$TMP_MONTH_SORT"
+
+MONTH_TOTAL=$(awk "BEGIN {print $MONTH_TOTAL + $mb}")
+
+done
+
+
+while IFS='|' read bytes line; do
+    MONTH_REPORT+="$line"$'\n'
+done < <(sort -nr "$TMP_MONTH_SORT")
 
 
 MONTH_USAGE=$(awk '
@@ -753,10 +780,12 @@ MONTH_REPORT+=$'\n'"Total month: $MONTH_USAGE"
 
 send_telegram "$MONTH_REPORT"
 
+rm -f "$TMP_MONTH_SORT"
+
 fi
 
 
-rm -f "$TMP_SORT" "$TMP_BASE"
+rm -f "$TMP_SORT"
 
 exit 0
 EOF
