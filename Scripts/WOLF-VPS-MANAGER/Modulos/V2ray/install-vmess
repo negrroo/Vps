@@ -1,0 +1,182 @@
+#!/bin/bash
+
+#sudo tee /usr/local/sbin/install-vmess > /dev/null <<'SCRIPT'
+
+echo "Checking environment..."
+
+# must run as root
+if [ "$EUID" -ne 0 ]; then
+  echo "Run as root"
+  exit
+fi
+
+# check stunnel installed
+if ! command -v stunnel4 >/dev/null 2>&1; then
+  echo "ERROR: stunnel not installed"
+  exit
+fi
+
+# check config exists
+if [ ! -f /etc/stunnel/stunnel.conf ]; then
+  echo "ERROR: stunnel config missing"
+  exit
+fi
+
+# check certificate exists
+if [ ! -f /etc/stunnel/stunnel.pem ]; then
+  echo "ERROR: stunnel certificate missing"
+  exit
+fi
+
+# detect stunnel port
+if ss -tulpn | grep ':443 ' | grep -q stunnel; then
+
+echo "Detected stunnel on 443"
+
+MOVE_STUNNEL=true
+
+elif ss -tulpn | grep ':444 ' | grep -q stunnel; then
+
+echo "Detected stunnel already on 444"
+
+MOVE_STUNNEL=false
+
+else
+
+echo "ERROR: stunnel not running on 443 or 444"
+exit
+
+fi
+
+
+echo "Installing packages..."
+
+apt update -y
+apt install curl socat haproxy -y
+
+
+echo "Installing Xray..."
+
+bash <(curl -Ls https://raw.githubusercontent.com/XTLS/Xray-install/main/install-release.sh)
+
+
+mkdir -p /usr/local/etc/xray
+
+
+echo "Creating Xray config..."
+
+cat > /usr/local/etc/xray/config.json <<EOF
+{
+"log":{
+"loglevel":"warning"
+},
+
+"inbounds":[
+{
+"port":8443,
+"protocol":"vmess",
+
+"settings":{
+"clients":[]
+},
+
+"streamSettings":{
+"network":"ws",
+
+"security":"tls",
+
+"tlsSettings":{
+"certificates":[
+{
+"certificateFile":"/etc/stunnel/stunnel.pem",
+"keyFile":"/etc/stunnel/stunnel.pem"
+}
+]
+},
+
+"wsSettings":{
+"path":"/vmess"
+}
+}
+}
+],
+
+"outbounds":[
+{
+"protocol":"freedom"
+}
+]
+}
+EOF
+
+
+systemctl enable xray
+systemctl restart xray
+
+
+if [ "$MOVE_STUNNEL" = true ]; then
+
+echo "Moving stunnel 443 → 444"
+
+killall stunnel4
+sleep 2
+sed -i 's/accept = 443/accept = 444/g' /etc/stunnel/stunnel.conf
+systemctl start stunnel4
+
+fi
+
+
+echo "Configuring HAProxy..."
+
+if ! grep -q "shared443" /etc/haproxy/haproxy.cfg; then
+
+cat >> /etc/haproxy/haproxy.cfg <<EOF
+
+frontend shared443
+    bind *:443
+    mode tcp
+
+    tcp-request inspect-delay 2s
+    tcp-request content accept if { req_ssl_hello_type 1 }
+
+    # SSL SSH SNI
+    # use_backend ssh if { req.ssl_sni -i m.youtube.com }
+
+    # VMESS SNI
+    use_backend vmess if { req.ssl_sni -i negrrooz.duckdns.org }
+    # use_backend vmess if { req.ssl_sni -i youtube.com }
+
+    default_backend ssh
+
+
+backend ssh
+    mode tcp
+    server ssh 127.0.0.1:444
+
+
+backend vmess
+    mode tcp
+    server vmess 127.0.0.1:8443
+
+EOF
+
+fi
+
+
+systemctl enable haproxy
+systemctl restart haproxy
+
+
+echo ""
+echo "VMESS installed successfully"
+echo ""
+echo "Port : 443"
+echo "Path : /vmess"
+echo ""
+echo "Use different SNI for SSH and VMESS"
+echo "by nano /etc/haproxy/haproxy.cfg"
+
+#SCRIPT
+
+#chmod +x /usr/local/sbin/install-vmess
+#bash /usr/local/sbin/install-vmess

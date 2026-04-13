@@ -1,0 +1,306 @@
+#!/bin/bash
+
+#sudo tee /usr/local/sbin/vmess-modules > /dev/null <<'SCRIPT'
+
+CONFIG="/usr/local/etc/xray/config.json"
+LOG="/var/log/xray/access.log"
+
+mkdir -p /etc
+
+########################
+# ADD USER
+########################
+
+cat > /usr/local/sbin/add-vmess <<'EOF'
+#!/bin/bash
+
+CONFIG="/usr/local/etc/xray/config.json"
+
+read -p "Username : " user
+read -p "Expired (days) : " exp
+read -p "IP limit : " iplimit
+
+uuid=$(cat /proc/sys/kernel/random/uuid)
+expdate=$(date -d "$exp days" +"%Y-%m-%d")
+
+echo "$user $expdate active" >> /etc/vmess-exp
+echo "$user $iplimit" >> /etc/vmess-iplimit
+
+sed -i '/"clients": \[/a\    {\n      "id": "'"$uuid"'",\n      "alterId": 0,\n      "email": "'"$user"'"\n    },' $CONFIG
+
+systemctl restart xray
+
+vmesslink="vmess://$(echo -n '{
+"v":"2",
+"ps":"'"$user"'",
+"add":"negrrooz.duckdns.org",
+"port":"443",
+"id":"'"$uuid"'",
+"aid":"0",
+"net":"ws",
+"path":"/vmess",
+"type":"none",
+"host":"",
+"tls":"tls"
+}' | base64 -w0)"
+
+echo ""
+echo "User created"
+echo "Username : $user"
+echo "UUID     : $uuid"
+echo "Expiry   : $expdate"
+echo "IP limit : $iplimit"
+echo ""
+echo "$vmesslink"
+EOF
+
+
+########################
+# DELETE USER
+########################
+
+cat > /usr/local/sbin/del-vmess <<'EOF'
+#!/bin/bash
+
+CONFIG="/usr/local/etc/xray/config.json"
+
+read -p "Username : " user
+
+sed -i "/\"email\": \"$user\"/,+2 d" $CONFIG
+
+sed -i "/^$user /d" /etc/vmess-exp
+sed -i "/^$user /d" /etc/vmess-iplimit
+
+systemctl restart xray
+
+echo "User deleted"
+EOF
+
+
+########################
+# LIST USERS
+########################
+
+cat > /usr/local/sbin/list-vmess <<'EOF'
+#!/bin/bash
+
+printf "%-20s %-12s %-8s\n" USER EXPIRE STATUS
+echo "-------------------------------------------"
+
+while read u d s
+do
+printf "%-20s %-12s %-8s\n" $u $d $s
+done < /etc/vmess-exp
+EOF
+
+
+########################
+# RENEW USER
+########################
+
+cat > /usr/local/sbin/renew-vmess <<'EOF'
+#!/bin/bash
+
+read -p "Username : " user
+read -p "Extend days : " days
+
+newdate=$(date -d "$days days" +"%Y-%m-%d")
+
+sed -i "s/^$user .*/$user $newdate active/" /etc/vmess-exp
+
+echo "Expiry updated to $newdate"
+EOF
+
+
+########################
+# LOCK USER
+########################
+
+cat > /usr/local/sbin/lock-vmess <<'EOF'
+#!/bin/bash
+
+CONFIG="/usr/local/etc/xray/config.json"
+
+read -p "Username : " user
+
+sed -i "/\"email\": \"$user\"/,+2 d" $CONFIG
+
+sed -i "s/$user .* active/$user $(grep $user /etc/vmess-exp | awk '{print $2}') locked/" /etc/vmess-exp
+
+systemctl restart xray
+
+echo "User locked"
+EOF
+
+
+########################
+# UNLOCK USER
+########################
+
+cat > /usr/local/sbin/unlock-vmess <<'EOF'
+#!/bin/bash
+
+CONFIG="/usr/local/etc/xray/config.json"
+
+read -p "Username : " user
+
+uuid=$(cat /proc/sys/kernel/random/uuid)
+
+sed -i '/"clients": \[/a\    {\n      "id": "'"$uuid"'",\n      "alterId": 0,\n      "email": "'"$user"'"\n    },' $CONFIG
+
+sed -i "s/$user .* locked/$user $(grep $user /etc/vmess-exp | awk '{print $2}') active/" /etc/vmess-exp
+
+systemctl restart xray
+
+echo "User unlocked"
+EOF
+
+
+########################
+# ONLINE USERS
+########################
+
+cat > /usr/local/sbin/cek-vmess <<'EOF'
+#!/bin/bash
+
+grep email /var/log/xray/access.log | \
+awk '{print $3,$NF}' | \
+sed 's/email://g' | \
+cut -d: -f1 | \
+sort | uniq -c
+EOF
+
+
+########################
+# USER IP LIST
+########################
+
+cat > /usr/local/sbin/ip-vmess <<'EOF'
+#!/bin/bash
+
+grep email /var/log/xray/access.log | \
+awk '{print $3,$NF}' | \
+sed 's/email://g' | \
+sort | uniq
+EOF
+
+
+########################
+# BANDWIDTH USAGE
+########################
+
+cat > /usr/local/sbin/usage-vmess <<'EOF'
+#!/bin/bash
+
+grep email /var/log/xray/access.log | \
+awk '{print $NF,$5}' | \
+sed 's/email://g' | \
+awk '
+
+{
+user=$1
+bytes=$2
+usage[user]+=bytes
+}
+
+END {
+
+for (u in usage)
+
+printf "%-15s %.2f MB\n", u, usage[u]/1024/1024
+
+}'
+EOF
+
+
+########################
+# LIVE MONITOR
+########################
+
+cat > /usr/local/sbin/live-vmess <<'EOF'
+#!/bin/bash
+
+tail -f /var/log/xray/access.log | grep email
+EOF
+
+
+########################
+# IP LIMIT CHECKER
+########################
+
+cat > /usr/local/sbin/check-vmess-ip <<'EOF'
+#!/bin/bash
+
+LOG="/var/log/xray/access.log"
+
+while read user limit
+do
+
+ipcount=$(grep "$user" $LOG | awk '{print $3}' | cut -d: -f1 | sort | uniq | wc -l)
+
+if [ "$ipcount" -gt "$limit" ]; then
+
+sed -i "/\"email\": \"$user\"/,+2 d" /usr/local/etc/xray/config.json
+
+sed -i "s/$user .* active/$user $(grep $user /etc/vmess-exp | awk '{print $2}') locked/" /etc/vmess-exp
+
+fi
+
+done < /etc/vmess-iplimit
+
+systemctl restart xray
+EOF
+
+
+########################
+# EXPIRY LOCK
+########################
+
+cat > /usr/local/sbin/check-vmess-exp <<'EOF'
+#!/bin/bash
+
+today=$(date +"%Y-%m-%d")
+
+while read user exp status
+do
+
+if [[ "$today" > "$exp" ]] && [[ "$status" = "active" ]]; then
+
+sed -i "/\"email\": \"$user\"/,+2 d" /usr/local/etc/xray/config.json
+
+sed -i "s/$user $exp active/$user $exp locked/" /etc/vmess-exp
+
+fi
+
+done < /etc/vmess-exp
+
+systemctl restart xray
+EOF
+
+
+chmod +x /usr/local/sbin/*-vmess
+
+
+(crontab -l 2>/dev/null; echo "*/2 * * * * /usr/local/sbin/check-vmess-ip") | crontab -
+(crontab -l 2>/dev/null; echo "0 0 * * * /usr/local/sbin/check-vmess-exp") | crontab -
+
+echo ""
+echo "VMESS modules ready"
+echo ""
+echo "Available commands:"
+echo ""
+echo "add-vmess"
+echo "del-vmess"
+echo "list-vmess"
+echo "renew-vmess"
+echo "lock-vmess"
+echo "unlock-vmess"
+echo "cek-vmess"
+echo "ip-vmess"
+echo "usage-vmess"
+echo "live-vmess"
+
+#SCRIPT
+
+#chmod +x /usr/local/sbin/vmess-modules
+#bash /usr/local/sbin/vmess-modules
