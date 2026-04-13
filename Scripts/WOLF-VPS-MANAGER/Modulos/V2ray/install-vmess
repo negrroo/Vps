@@ -123,6 +123,10 @@ sleep 2
 sed -i 's/accept = 443/accept = 444/g' /etc/stunnel/stunnel.conf
 systemctl start stunnel4
 
+# Restart again
+service stunnel4 restart
+service ssh restart
+/etc/init.d/stunnel4 restart
 fi
 
 
