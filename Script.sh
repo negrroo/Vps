@@ -376,7 +376,21 @@ sudo tee /usr/local/bin/ssh_user_monitor.sh > /dev/null <<'EOF'
 set -u
 set -o pipefail
 
-USERS_DB="/etc/firewallfalcon/users.db"
+FALCON_DB="/etc/firewallfalcon/users.db"
+USUARIOS_DB="/root/usuarios.db"
+
+if [[ -f "$FALCON_DB" ]]; then
+    USERS_DB="$FALCON_DB"
+
+elif [[ -f "$USUARIOS_DB" ]]; then
+    USERS_DB="$USUARIOS_DB"
+    DB_TYPE="usuarios"
+
+else
+    echo "No users database found"
+    exit 1
+fi
+
 LOGIN_DIR="/var/log/ssh-last-login"
 BW_DIR="/etc/firewallfalcon/bandwidth"
 
@@ -428,7 +442,12 @@ TODAY=$(date +%s)
 while IFS= read -r line || [[ -n "$line" ]]; do
 
   [[ -z "$line" || "$line" =~ ^[[:space:]]*# ]] && continue
-  u="${line%%:*}"
+
+  if [[ "${DB_TYPE:-falcon}" == "usuarios" ]]; then
+      u=$(echo "$line" | awk '{print $1}')
+  else
+      u="${line%%:*}"
+  fi
 
   [[ -z "$u" ]] && continue
 
@@ -1094,6 +1113,12 @@ Proxy1
 apt install -y bzip2 gzip coreutils screen curl unzip && wget https://raw.githubusercontent.com/V3SAKURAAIRIV3/Error404/main/setup.sh && chmod +x setup.sh && sed -i -e 's/\r$//' setup.sh && screen -S setup ./setup.sh
 onNTVIP
 }
+
+Wolf() {
+Finalizing
+wget -q https://raw.githubusercontent.com/AtizaD/WOLF-VPS-MANAGER/main/hehe -q; chmod 777 hehe; ./hehe
+wget -q -O /bin/conexao https://raw.githubusercontent.com/negrroo/Vps/main/Scripts/WOLF-VPS-MANAGER/Modulos/V2ray/vconexao && chmod +x /bin/conexao
+}
 #
 
 # Script Selection
@@ -1146,6 +1171,10 @@ NoFalcon1
 elif [ $Cond == 'Prox' ]
 then
 Proxy1
+
+elif [ $Cond == 'Wolf' ]
+then
+Wolf
 
 fi
 ################################LawRun-END#######################################
