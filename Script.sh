@@ -455,7 +455,9 @@ while IFS= read -r line || [[ -n "$line" ]]; do
   [[ "$u" =~ ^[xv] ]] && continue
 
   id "$u" >/dev/null 2>&1 || continue
-
+  
+  # hide system users
+  [[ $(id -u "$u") -lt 1000 ]] && continue
 
   # skip expired users
   EXP_DATE=$(chage -l "$u" | awk -F': ' '/Account expires/{print $2}')
