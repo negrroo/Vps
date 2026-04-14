@@ -14,11 +14,76 @@ mkdir -p /etc
 cat > /usr/local/sbin/add-vmess <<'EOF'
 #!/bin/bash
 
+IP=$(cat /etc/IP)
+cor1='\033[41;1;37m'
+cor2='\033[44;1;37m'
+scor='\033[0m'
+
+if [[ -f /etc/.domain ]]; then
+    Host=$(cat /etc/.domain)
+else
+    Host="Your_domain_here"
+fi
+
 CONFIG="/usr/local/etc/xray/config.json"
 
-read -p "Username : " user
-read -p "Expired (days) : " exp
-read -p "IP limit : " iplimit
+tput setaf 7;tput setab 4;tput bold;printf '%30s%s%-15s\n' "Create Vmess User";tput sgr0
+echo ""
+echo -ne "\033[1;32mUsername:\033[1;37m "; read user
+[[ -z $user ]] && {
+	echo -e "\n${cor1}Empty or invalid username!${scor}\n"
+	exit 1
+}
+[[ "$(grep -wc $user /etc/passwd)" != '0' ]] && {
+	echo -e "\n${cor1}This user already exists. try another name!${scor}\n"
+	exit 1
+}
+[[ ${user} != ?(+|-)+([a-zA-Z0-9]) ]] && {
+	echo -e "\n${cor1}You entered an invalid username!${scor}"
+	echo -e "${cor1}Do not use spaces, accents or special characters!${scor}\n"
+	exit 1
+}
+sizemin=$(echo ${#user})
+[[ $sizemin -lt 2 ]] && {
+	echo -e "\n${cor1}You entered too short a username${scor}"
+	echo -e "${cor1}use at least 4 characters!${scor}\n"
+	exit 1
+}
+sizemax=$(echo ${#user})
+[[ $sizemax -gt 10 ]] && {
+	echo -e "\n${cor1}You entered a very large username"
+	echo -e "${cor1}use a maximum of 10 characters!${scor}\n"
+	exit 1
+}
+
+echo -ne "\033[1;32mdays to expire:\033[1;37m "; read exp
+[[ -z $exp ]] && {
+	echo -e "\n${cor1}number of days empty!${scor}\n"
+	exit 1
+}
+[[ ${exp} != ?(+|-)+([0-9]) ]] && {
+	echo -e "\n${cor1}You entered an invalid number of days!${scor}\n"
+	exit 1
+}
+[[ $exp -lt 1 ]] && {
+	echo -e "\n${cor1}The number must be greater than zero!${scor}\n"
+	exit 1
+}
+
+echo -ne "\033[1;32mLimit of connections:\033[1;37m "; read iplimit
+[[ -z $iplimit ]] && {
+	echo -e "\n${cor1}You left the connection limit empty!${scor}\n"
+	exit 1
+}
+[[ ${iplimit} != ?(+|-)+([0-9]) ]] && {
+	echo -e "\n${cor1}You entered an invalid number of connections!${scor}\n"
+	exit 1
+}
+[[ $iplimit -lt 1 ]] && {
+	echo -e "\n${cor1}Number of concurrent connections must be greater than zero!${scor}\n"
+	exit 1
+}
+
 
 uuid=$(cat /proc/sys/kernel/random/uuid)
 expdate=$(date -d "$exp days" +"%Y-%m-%d")
@@ -26,7 +91,40 @@ expdate=$(date -d "$exp days" +"%Y-%m-%d")
 echo "$user $expdate active" >> /etc/vmess-exp
 echo "$user $iplimit" >> /etc/vmess-iplimit
 
-sed -i '/"clients": \[/a\    {\n      "id": "'"$uuid"'",\n      "alterId": 0,\n      "email": "'"$user"'"\n    },' $CONFIG
+################################
+# ADD USER TO CONFIG.JSON
+################################
+
+if grep -q '"clients":\[\]' $CONFIG; then
+
+# first user
+sed -i 's|"clients":\[\]|"clients":[\
+{\
+"id":"'"$uuid"'",\
+"alterId":0,\
+"email":"'"$user"'"\
+}\
+]|' $CONFIG
+
+else
+
+# additional users
+sed -i '/"clients":\[/a\
+{\
+"id":"'"$uuid"'",\
+"alterId":0,\
+"email":"'"$user"'"\
+},' $CONFIG
+
+fi
+
+
+################################
+# FIX TRAILING COMMA
+################################
+
+sed -i ':a;N;$!ba;s/,\n]/\n]/g' $CONFIG
+
 
 systemctl restart xray
 
@@ -46,14 +144,29 @@ vmesslink="vmess://$(echo -n '{
 "tls":"tls"
 }' | base64 -w0)"
 
-echo ""
-echo "User created"
-echo "Username : $user"
-echo "UUID     : $uuid"
-echo "Expiry   : $expdate"
-echo "IP limit : $iplimit"
-echo ""
-echo "$vmesslink"
+    clear
+    echo -e "\033[1;32m===================================="
+    echo -e "\033[1;32m   🌀NEGRROO VPS MANAGER🌀  " 
+    echo -e "\033[1;32m 🌀Modified WOLF VPS MANAGER🌀  " 
+    echo -e "\033[1;32m===================================="
+    echo ""
+    echo -e "\033[1;37m◈────────⪧ VMESS ACCOUNT ⪦────────────────◈"
+    echo ""
+    echo -e "\033[1;32m◈ IP Adress   :⪧  \033[1;31m$IP"
+    echo -e "\033[1;32m◈ Host Name   :⪧  \033[1;31m$Host"
+    echo -e "\033[1;32m◈ Username    :⪧  \033[1;31m$user"
+    echo -e "\033[1;32m◈ UUID        :⪧  \033[1;31m$uuid"
+    echo -e "\033[1;32m◈ Login Limit :⪧  \033[1;31m$iplimit"
+    echo -e "\033[1;32m◈ Expire Date :⪧  \033[1;31m$expdate"
+    echo ""
+    echo -e "\033[1;37m◈─────────── VMESS LINK ─────────────◈"
+    echo -e "\033[1;32m$vmesslink"
+    echo -e "\033[1;37m◈──────────────────────────────────────────◈"
+    echo ""
+    echo -e "\033[1;37m◈────────────────────────────────────────────◈"
+    echo -e "\033[1;32m©️ 🌀NEGRROO VPS MANAGER🌀  " 
+    echo -e "\033[1;32m 🌀Modified WOLF VPS MANAGER🌀  " 
+    echo -e "\033[1;37m◈────────────────────────────────────────────◈"
 EOF
 
 
