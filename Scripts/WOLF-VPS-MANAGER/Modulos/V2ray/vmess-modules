@@ -30,17 +30,19 @@ sed -i '/"clients": \[/a\    {\n      "id": "'"$uuid"'",\n      "alterId": 0,\n 
 
 systemctl restart xray
 
+DOMAIN=$(cat /etc/.domain | tr -d '[:space:]')
+
 vmesslink="vmess://$(echo -n '{
 "v":"2",
 "ps":"'"$user"'",
-"add":"negrrooz.duckdns.org",
+"add":"'"$DOMAIN"'",
 "port":"443",
 "id":"'"$uuid"'",
 "aid":"0",
 "net":"ws",
 "path":"/vmess",
 "type":"none",
-"host":"",
+"host":"'"$DOMAIN"'",
 "tls":"tls"
 }' | base64 -w0)"
 

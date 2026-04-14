@@ -129,6 +129,8 @@ service ssh restart
 /etc/init.d/stunnel4 restart
 fi
 
+DOMAIN=$(cat /etc/.domain)
+echo "Detected domain: $DOMAIN"
 
 echo "Configuring HAProxy..."
 
@@ -147,7 +149,7 @@ frontend shared443
     # use_backend ssh if { req.ssl_sni -i m.youtube.com }
 
     # VMESS SNI
-    use_backend vmess if { req.ssl_sni -i negrrooz.duckdns.org }
+    use_backend vmess if { req.ssl_sni -i $DOMAIN }
     # use_backend vmess if { req.ssl_sni -i youtube.com }
 
     default_backend ssh
