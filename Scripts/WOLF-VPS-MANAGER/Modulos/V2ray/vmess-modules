@@ -685,12 +685,111 @@ EOF
 cat > /usr/local/sbin/ip-vmess <<'EOF'
 #!/bin/bash
 
-grep email /var/log/xray/access.log | \
-awk '{print $3,$NF}' | \
-sed 's/email://g' | \
-sort | uniq
-EOF
+ACCESSLOG="/var/log/xray/access.log"
 
+clear
+tput setaf 7 ; tput setab 4 ; tput bold
+printf '%32s%s%-13s\n' "  🌐 VMESS User IP Activity  🌐 "
+tput sgr0
+
+echo ""
+echo -e "\033[1;33m◇ USER RECENT IP ACTIVITY:\033[0m"
+echo ""
+
+########################################
+# recent activity window
+########################################
+
+NOW=$(date +%s)
+
+data=$(tail -n 600 $ACCESSLOG | while read line
+do
+
+log_time=$(echo "$line" | awk '{print $1" "$2}')
+log_epoch=$(date -d "$log_time" +%s 2>/dev/null)
+
+diff=$((NOW-log_epoch))
+
+if [[ $diff -le 120 ]]; then
+echo "$line"
+fi
+
+done)
+
+########################################
+# extract last 3 IPs per user
+########################################
+
+echo "$data" \
+| grep 'email:' \
+| while read line
+do
+
+user=$(echo "$line" \
+| awk -F'email:' '{print $2}' \
+| awk '{print $1}')
+
+ip=$(echo "$line" \
+| grep -oE 'tcp:[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+' \
+| cut -d: -f2)
+
+echo "$user $ip"
+
+done \
+| tac \
+> /tmp/vmess_ip_raw
+
+
+########################################
+# display limited results
+########################################
+
+i=0
+
+for user in $(awk '{print $1}' /tmp/vmess_ip_raw | sort -u)
+do
+
+ips=$(grep "^$user " /tmp/vmess_ip_raw \
+| awk '{print $2}' \
+| awk '!seen[$0]++' \
+| head -n 3)
+
+if [[ -n "$ips" ]]; then
+
+i=$((i+1))
+num=$(printf "%02d" $i)
+
+echo -e "\033[1;31m[$num] \033[1;32m$user\033[0m"
+
+for ip in $ips
+do
+
+echo -e "     \033[1;36mIP:\033[0m $ip"
+
+done
+
+echo ""
+
+fi
+
+done
+
+
+########################################
+
+if [[ "$i" = "0" ]]; then
+echo -e "\033[1;31mNo active users\033[0m"
+fi
+
+
+echo -e "\033[1;36mTotal Active Users:\033[1;37m $i"
+echo ""
+
+read -p $'\033[1;31m◇ ENTER to return to MENU\033[0m'
+
+rm -f /tmp/vmess_ip_raw
+
+EOF
 
 ########################
 # BANDWIDTH USAGE
