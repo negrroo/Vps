@@ -291,12 +291,33 @@ EOF
 cat > /usr/local/sbin/list-vmess <<'EOF'
 #!/bin/bash
 
-printf "%-20s %-12s %-8s\n" USER EXPIRE STATUS
-echo "-------------------------------------------"
+clear
+tput setaf 7 ; tput setab 4 ; tput bold
+printf '%32s%s%-13s\n' "ㅤ🐉ㅤ🚮List VMESS Userㅤ🚮ㅤ🐉ㅤ"
+tput sgr0
 
-while read u d s
+echo ""
+echo -e "\033[1;33m◇ LIST OF USERS:\033[0m"
+echo ""
+
+if [[ ! -f /etc/vmess-exp ]]; then
+echo "No VMESS users found"
+exit
+fi
+
+i=0
+unset user_list
+
+while read user exp status
 do
-printf "%-20s %-12s %-8s\n" $u $d $s
+
+i=$((i+1))
+num=$(printf "%02d" $i)
+
+echo -e "\033[1;31m[\033[1;36m$num\033[1;31m] \033[1;37m- \033[1;32m$user\033[0m"
+
+user_list+="\n$num:$user"
+
 done < /etc/vmess-exp
 EOF
 
