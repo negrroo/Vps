@@ -349,17 +349,115 @@ cat > /usr/local/sbin/lock-vmess <<'EOF'
 
 CONFIG="/usr/local/etc/xray/config.json"
 
-read -p "Username : " user
+clear
+tput setaf 7 ; tput setab 4 ; tput bold
+printf '%32s%s%-13s\n' "  🔒 Lock VMESS User 🔒 "
+tput sgr0
 
-sed -i "/\"email\": \"$user\"/,+2 d" $CONFIG
+echo ""
+echo -e "\033[1;33m◇ LIST OF ACTIVE USERS:\033[0m"
+echo ""
 
-sed -i "s/$user .* active/$user $(grep $user /etc/vmess-exp | awk '{print $2}') locked/" /etc/vmess-exp
+if [[ ! -f /etc/vmess-exp ]]; then
+echo "No users found"
+exit
+fi
+
+i=0
+unset user_list
+
+while read user exp status
+do
+if [[ "$status" = "active" ]]; then
+
+i=$((i+1))
+num=$(printf "%02d" $i)
+
+echo -e "\033[1;31m[$num] \033[1;32m$user\033[0m"
+
+user_list+="\n$num:$user"
+
+fi
+done < /etc/vmess-exp
+
+
+echo ""
+echo -ne "\033[1;32m◇ Enter user number:\033[0m "
+read option
+
+user=$(echo -e "$user_list" | grep "^$option:" | cut -d: -f2)
+
+[[ -z "$user" ]] && echo "Invalid user" && exit
+
+
+################################
+# find UUID near email
+################################
+
+uuid=$(awk -v u="$user" '
+
+$0 ~ /"email"/ && $0 ~ u {
+
+for(i=NR;i>=1;i--){
+
+getline line < FILENAME
+
+}
+
+}
+
+' $CONFIG)
+
+# simpler approach:
+
+uuid=$(grep -n "\"email\".*$user" $CONFIG | while IFS=: read line_num _; do
+
+sed -n "1,${line_num}p" $CONFIG | tac | grep -m1 '"id"' | head -1
+
+done | cut -d'"' -f4)
+
+[[ -z "$uuid" ]] && echo "UUID not found" && exit
+
+
+################################
+# shift first character
+################################
+
+first=${uuid:0:1}
+
+shifted=$(echo "$first" | tr '0123456789abcdef' '123456789abcdef0')
+
+new_uuid="${shifted}${uuid:1}"
+
+
+################################
+# replace UUID once
+################################
+
+sed -i "0,/$uuid/s//$new_uuid/" $CONFIG
+
+
+################################
+# update status
+################################
+
+expdate=$(grep "^$user " /etc/vmess-exp | awk '{print $2}')
+
+sed -i "s/^$user .* active/$user $expdate locked/" /etc/vmess-exp
+
+
+################################
+# restart xray
+################################
 
 systemctl restart xray
 
-echo "User locked"
-EOF
 
+echo ""
+echo -e "\E[41;1;37m◇ User $user successfully LOCKED \E[0m"
+echo ""
+
+EOF
 
 ########################
 # UNLOCK USER
