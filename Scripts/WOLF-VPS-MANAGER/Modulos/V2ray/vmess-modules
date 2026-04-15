@@ -468,17 +468,98 @@ cat > /usr/local/sbin/unlock-vmess <<'EOF'
 
 CONFIG="/usr/local/etc/xray/config.json"
 
-read -p "Username : " user
+clear
+tput setaf 7 ; tput setab 4 ; tput bold
+printf '%32s%s%-13s\n' "  🔓 Unlock VMESS User 🔓 "
+tput sgr0
 
-uuid=$(cat /proc/sys/kernel/random/uuid)
+echo ""
+echo -e "\033[1;33m◇ LIST OF LOCKED USERS:\033[0m"
+echo ""
 
-sed -i '/"clients": \[/a\    {\n      "id": "'"$uuid"'",\n      "alterId": 0,\n      "email": "'"$user"'"\n    },' $CONFIG
+if [[ ! -f /etc/vmess-exp ]]; then
+echo "No users found"
+exit
+fi
 
-sed -i "s/$user .* locked/$user $(grep $user /etc/vmess-exp | awk '{print $2}') active/" /etc/vmess-exp
+i=0
+unset user_list
+
+while read user exp status
+do
+if [[ "$status" = "locked" ]]; then
+
+i=$((i+1))
+num=$(printf "%02d" $i)
+
+echo -e "\033[1;31m[$num] \033[1;32m$user\033[0m"
+
+user_list+="\n$num:$user"
+
+fi
+done < /etc/vmess-exp
+
+
+echo ""
+echo -ne "\033[1;32m◇ Enter user number:\033[0m "
+read option
+
+user=$(echo -e "$user_list" | grep "^$option:" | cut -d: -f2)
+
+[[ -z "$user" ]] && echo "Invalid user" && exit
+
+
+################################
+# find UUID
+################################
+
+uuid=$(grep -n "\"email\".*$user" $CONFIG | while IFS=: read line_num _; do
+
+sed -n "1,${line_num}p" $CONFIG | tac | grep -m1 '"id"' | head -1
+
+done | cut -d'"' -f4)
+
+[[ -z "$uuid" ]] && echo "UUID not found" && exit
+
+
+################################
+# restore first character
+################################
+
+first=${uuid:0:1}
+
+orig=$(echo "$first" | tr '123456789abcdef0' '0123456789abcdef')
+
+orig_uuid="${orig}${uuid:1}"
+
+
+################################
+# replace UUID
+################################
+
+sed -i "0,/$uuid/s//$orig_uuid/" $CONFIG
+
+
+################################
+# update status
+################################
+
+expdate=$(grep "^$user " /etc/vmess-exp | awk '{print $2}')
+
+sed -i "s/^$user .* locked/$user $expdate active/" /etc/vmess-exp
+
+
+################################
+# restart xray
+################################
 
 systemctl restart xray
 
-echo "User unlocked"
+
+echo ""
+echo -e "\E[44;1;37m◇ User $user successfully UNLOCKED \E[0m"
+echo ""
+
 EOF
 
 
