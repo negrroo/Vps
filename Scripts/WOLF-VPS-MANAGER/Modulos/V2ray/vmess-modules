@@ -888,25 +888,197 @@ EOF
 cat > /usr/local/sbin/usage-vmess <<'EOF'
 #!/bin/bash
 
-grep email /var/log/xray/access.log | \
-awk '{print $NF,$5}' | \
-sed 's/email://g' | \
-awk '
+ACCESSLOG="/var/log/xray/access.log"
+VMESS_DB="/etc/vmess-exp"
+LAST_FILE="/etc/vmess-last-traffic"
+USAGE_FILE="/etc/vmess-usage"
 
-{
-user=$1
-bytes=$2
-usage[user]+=bytes
+echo ""
+echo -e "\033[1;33mLoading usage data...\033[0m"
+
+############################################
+# CURRENT SERVER TRAFFIC
+############################################
+
+IFACE=$(ip route get 1 | awk '{print $5;exit}')
+
+RX=$(cat /sys/class/net/$IFACE/statistics/rx_bytes)
+TX=$(cat /sys/class/net/$IFACE/statistics/tx_bytes)
+
+CURRENT_TOTAL=$(($RX+$TX))
+
+############################################
+# GET LAST TRAFFIC SNAPSHOT
+############################################
+
+if [[ ! -f $LAST_FILE ]]
+then
+echo "$CURRENT_TOTAL" > $LAST_FILE
+fi
+
+LAST_TOTAL=$(cat $LAST_FILE)
+
+NEW_BYTES=$(($CURRENT_TOTAL-$LAST_TOTAL))
+NEW_MB=$(awk "BEGIN {printf \"%.2f\", $NEW_BYTES/1024/1024}")
+
+echo "$CURRENT_TOTAL" > $LAST_FILE
+
+############################################
+# GET ONLINE USERS (same method as online-vmess)
+############################################
+
+ONLINE=$(awk -v now="$(date +%s)" '
+
+/email:/ {
+
+logtime=$1" "$2
+gsub(/\//,"-",logtime)
+
+cmd="date -d \""logtime"\" +%s"
+cmd | getline logepoch
+close(cmd)
+
+if ((now-logepoch) <= 120)
+print $0
+
 }
 
-END {
+' $ACCESSLOG 2>/dev/null \
+| awk -F'email:' '{print $2}' \
+| awk '{print $1}' \
+| sort -u)
 
-for (u in usage)
+ONLINE_COUNT=$(echo "$ONLINE" | wc -w)
 
-printf "%-15s %.2f MB\n", u, usage[u]/1024/1024
+############################################
+# LOAD PREVIOUS USER USAGE
+############################################
 
-}'
+touch $USAGE_FILE
+
+############################################
+# DISTRIBUTE NEW TRAFFIC
+############################################
+
+if [[ "$ONLINE_COUNT" -gt 0 ]]
+then
+
+share=$(awk "BEGIN {printf \"%.2f\", $NEW_MB/$ONLINE_COUNT}")
+
+for user in $ONLINE
+do
+
+old=$(grep "^$user " $USAGE_FILE | awk '{print $2}')
+[[ -z "$old" ]] && old=0
+
+new=$(awk "BEGIN {printf \"%.2f\", $old+$share}")
+
+sed -i "/^$user /d" $USAGE_FILE
+echo "$user $new" >> $USAGE_FILE
+
+done
+
+fi
+
+############################################
+# CONVERT MB → GB
+############################################
+
+convert_unit(){
+
+mb=$1
+
+if (( $(echo "$mb >= 1024" | bc -l) ))
+then
+gb=$(awk "BEGIN {printf \"%.2f\", $mb/1024}")
+echo "$gb GB"
+else
+printf "%.2f MB" "$mb"
+fi
+
+}
+
+############################################
+# UI
+############################################
+
+clear
+
+tput setaf 7;tput setab 4;tput bold
+printf '%30s%s%-15s\n' "📊 VMESS Usage Monitor 📊"
+tput sgr0
+
+echo ""
+
+############################################
+# ONLINE USERS
+############################################
+
+echo -e "\033[1;33m◇ ONLINE USERS:\033[0m"
+echo ""
+
+i=0
+
+for user in $ONLINE
+do
+
+usage=$(grep "^$user " $USAGE_FILE | awk '{print $2}')
+[[ -z "$usage" ]] && usage=0
+
+i=$((i+1))
+
+printf "\033[1;31m[%02d]\033[1;32m %s\n" $i "$user"
+printf "     \033[1;36mUsage:\033[1;37m %s\n\n" "$(convert_unit $usage)"
+
+done
+
+[[ $i -eq 0 ]] && echo -e "\033[1;31mNo online users\033[0m"
+
+############################################
+# OFFLINE USERS
+############################################
+
+echo ""
+echo -e "\033[1;33m◇ OFFLINE USERS:\033[0m"
+echo ""
+
+j=0
+
+for user in $(cut -d' ' -f1 $VMESS_DB)
+do
+
+echo "$ONLINE" | grep -w "$user" >/dev/null && continue
+
+usage=$(grep "^$user " $USAGE_FILE | awk '{print $2}')
+[[ -z "$usage" ]] && usage=0
+
+j=$((j+1))
+
+printf "\033[1;31m[%02d]\033[1;32m %s\n" $j "$user"
+printf "     \033[1;36mUsage:\033[1;37m %s\n\n" "$(convert_unit $usage)"
+
+done
+
+[[ $j -eq 0 ]] && echo -e "\033[1;31mNo offline users\033[0m"
+
+############################################
+# TOTAL
+############################################
+
+TOTAL_USERS=$(($(wc -l < $VMESS_DB)))
+
+TOTAL_MB=$(awk "BEGIN {printf \"%.2f\", $CURRENT_TOTAL/1024/1024}")
+
+echo ""
+echo -e "\033[1;36mTotal Users:\033[1;37m $TOTAL_USERS"
+echo -e "\033[1;36mServer Traffic:\033[1;37m $(convert_unit $TOTAL_MB)"
+
+echo ""
+read -p $'\033[1;31m◇ ENTER to return to MENU\033[0m'
+
 EOF
+
+chmod +x /usr/local/sbin/usage-vmess
 
 
 ########################
