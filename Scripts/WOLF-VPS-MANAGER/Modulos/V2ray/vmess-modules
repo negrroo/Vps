@@ -949,6 +949,169 @@ EOF
 
 
 ########################
+# ADD Temp USER
+########################
+
+cat > /usr/local/sbin/add-trial-vmess <<'EOF'
+#!/bin/bash
+
+IP=$(cat /etc/IP)
+
+cor1='\033[41;1;37m'
+cor2='\033[44;1;37m'
+scor='\033[0m'
+
+if [[ -f /etc/.domain ]]; then
+    Host=$(cat /etc/.domain)
+else
+    Host="your_domain"
+fi
+
+CONFIG="/usr/local/etc/xray/config.json"
+
+tput setaf 7;tput setab 4;tput bold;printf '%30s%s%-15s\n' "Create Trial Vmess User";tput sgr0
+echo ""
+
+################################
+# username input
+################################
+
+echo -ne "\033[1;32mUsername:\033[1;37m "; read user
+
+[[ -z $user ]] && {
+echo -e "\n${cor1}Invalid username!${scor}\n"
+exit 1
+}
+
+################################
+# trial duration (hours)
+################################
+
+echo -ne "\033[1;32mTrial duration (hours):\033[1;37m "
+read hours
+
+[[ -z $hours ]] && {
+echo -e "\n${cor1}Invalid duration!${scor}\n"
+exit 1
+}
+
+[[ $hours -lt 1 ]] && {
+echo -e "\n${cor1}Must be at least 1 hour!${scor}\n"
+exit 1
+}
+
+################################
+# connection limit
+################################
+
+echo -ne "\033[1;32mLimit of connections:\033[1;37m "
+read iplimit
+
+[[ -z $iplimit ]] && {
+echo -e "\n${cor1}Invalid limit!${scor}\n"
+exit 1
+}
+
+################################
+# generate uuid
+################################
+
+uuid=$(cat /proc/sys/kernel/random/uuid)
+
+expdate=$(date -d "$hours hour" +"%Y-%m-%d")
+
+echo "$user $expdate active" >> /etc/vmess-exp
+echo "$user $iplimit" >> /etc/vmess-iplimit
+
+################################
+# insert into config.json
+################################
+
+if grep -q '"clients":\[\]' $CONFIG; then
+
+sed -i 's|"clients":\[\]|"clients":[\
+{\
+"id":"'"$uuid"'",\
+"alterId":0,\
+"email":"'"$user"'"\
+}\
+]|' $CONFIG
+
+else
+
+sed -i '/"clients":\[/a\
+{\
+"id":"'"$uuid"'",\
+"alterId":0,\
+"email":"'"$user"'"\
+},' $CONFIG
+
+fi
+
+sed -i ':a;N;$!ba;s/,\n]/\n]/g' $CONFIG
+
+systemctl restart xray
+
+################################
+# build vmess link
+################################
+
+DOMAIN=$(cat /etc/.domain | tr -d '[:space:]')
+
+vmesslink="vmess://$(echo -n '{
+"v":"2",
+"ps":"'"$user"'",
+"add":"'"$DOMAIN"'",
+"port":"443",
+"id":"'"$uuid"'",
+"aid":"0",
+"net":"ws",
+"path":"/vmess",
+"type":"none",
+"host":"'"$DOMAIN"'",
+"tls":"tls"
+}' | base64 -w0)"
+
+################################
+# output style same as add-vmess
+################################
+
+clear
+
+echo -e "\033[1;32m===================================="
+echo -e "\033[1;32m   🌀NEGRROO VPS MANAGER🌀"
+echo -e "\033[1;32m 🌀Modified WOLF VPS MANAGER🌀"
+echo -e "\033[1;32m===================================="
+echo ""
+
+echo -e "\033[1;37m◈────────⪧ TRIAL VMESS ACCOUNT ⪦────────◈"
+echo ""
+
+echo -e "\033[1;32m◈ IP Address   :⪧  \033[1;31m$IP"
+echo -e "\033[1;32m◈ Host Name    :⪧  \033[1;31m$Host"
+echo -e "\033[1;32m◈ Username     :⪧  \033[1;31m$user"
+echo -e "\033[1;32m◈ UUID         :⪧  \033[1;31m$uuid"
+echo -e "\033[1;32m◈ Login Limit  :⪧  \033[1;31m$iplimit"
+echo -e "\033[1;32m◈ Expire Date  :⪧  \033[1;31m$expdate"
+echo -e "\033[1;32m◈ Duration     :⪧  \033[1;31m$hours hour(s)"
+echo ""
+
+echo -e "\033[1;37m◈─────────── VMESS LINK ───────────◈"
+echo -e "\033[1;32m$vmesslink"
+
+echo -e "\033[1;37m◈──────────────────────────────────◈"
+echo ""
+
+echo -e "\033[1;37m◈────────────────────────────────────────────◈"
+echo -e "\033[1;32m©️ 🌀NEGRROO VPS MANAGER🌀"
+echo -e "\033[1;32m 🌀Modified WOLF VPS MANAGER🌀"
+echo -e "\033[1;37m◈────────────────────────────────────────────◈"
+
+echo ""
+
+EOF
+
+########################
 # EXPIRY LOCK
 ########################
 
@@ -1071,6 +1234,7 @@ echo "cek-vmess"
 echo "ip-vmess"
 echo "usage-vmess"
 echo "live-vmess"
+echo "add-trial-vmess"
 
 #SCRIPT
 
