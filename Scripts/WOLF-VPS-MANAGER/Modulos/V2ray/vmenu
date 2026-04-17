@@ -207,26 +207,15 @@ _userexp=$(printf '%-5s' "$_expuser")
 _tuser=$(printf '%-5s' "$_tuser")
 
 # Check for Updates
-check_v2ray_update(){
-
 REPO="https://raw.githubusercontent.com/negrroo/Vps/main/Scripts/WOLF-VPS-MANAGER/Modulos/V2ray"
-
 LOCAL_VER=$(cat /etc/vmess-version 2>/dev/null)
-
 REMOTE_VER=$(curl -m 2 -s $REPO/version)
-
 if [[ -n "$REMOTE_VER" && "$REMOTE_VER" != "$LOCAL_VER" ]]
 then
-
 xUpdate="\033[1;32m♦ "
-
 else
-
 xUpdate="\033[1;31m○ "
-
 fi
-
-}
 
 clear
 echo -e "\033[0;34m◇───────────────────────────────────────────────◇\033[0m"
@@ -595,7 +584,6 @@ case "$x" in
    exit;
    ;;
    18)
-   check_v2ray_update
    menu3
    ;;
    19)
