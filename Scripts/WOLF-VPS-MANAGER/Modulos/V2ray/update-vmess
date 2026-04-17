@@ -19,6 +19,7 @@ REPO="https://raw.githubusercontent.com/negrroo/Vps/main/Scripts/WOLF-VPS-MANAGE
 FILES=(
 vmess-modules
 install-vmess
+update-vmess
 )
 
 ############################################
