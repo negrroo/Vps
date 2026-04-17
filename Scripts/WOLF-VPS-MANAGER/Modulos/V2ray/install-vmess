@@ -168,6 +168,20 @@ EOF
 
 fi
 
+############################################
+# SAVE INSTALLED VERSION
+############################################
+
+REPO="https://raw.githubusercontent.com/negrroo/Vps/main/Scripts/WOLF-VPS-MANAGER/Modulos/V2ray"
+
+Latest=$(curl -fsSL $REPO/version 2>/dev/null)
+
+if [[ -n "$Latest" ]]
+then
+echo "$Latest" > /etc/vmess-version
+else
+echo "1.0" > /etc/vmess-version
+fi
 
 systemctl enable haproxy
 systemctl restart haproxy
