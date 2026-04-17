@@ -1234,45 +1234,45 @@ Falcon() {
 Daily1
 Monthly1
 Usage1
-Finalizing
 curl -L -o install.sh "https://raw.githubusercontent.com/firewallfalcons/FirewallFalcon-Manager/main/install.sh" && chmod +x install.sh && sudo ./install.sh && rm install.sh
+Finalizing
 }
 
 Montazer() {
-Finalizing
 NoFalcon1
 Proxy1
 wget https://raw.githubusercontent.com/MuntazerVpn/ehoop/main/installer -O installer && chmod +x installer && ./installer
+Finalizing
 onMontazer
 }
 
 Dragon() {
-Finalizing
 apt-get update -y; apt-get upgrade -y; wget https://raw.githubusercontent.com/sbatrow/DARKSSH-MANAGER/master/Dark; chmod 777 Dark; ./Dark
+Finalizing
 }
 
 NTVIP() {
-Finalizing
 NoFalcon1
 Proxy1
 # sysctl -w net.ipv6.conf.all.disable_ipv6=1 && sysctl -w net.ipv6.conf.default.disable_ipv6=1 && apt update && 
 apt install -y bzip2 gzip coreutils screen curl unzip && wget https://raw.githubusercontent.com/NETWORKTWEAKER/AUTO-SCRIPT/master/setup1.sh && chmod +x setup1.sh && sed -i -e 's/\r$//' setup1.sh && screen -S setup ./setup1.sh
+Finalizing
 onNTVIP
 }
 
 zNTVIP() {
-Finalizing
 NoFalcon1
 Proxy1
 # sysctl -w net.ipv6.conf.all.disable_ipv6=1 && sysctl -w net.ipv6.conf.default.disable_ipv6=1 && apt update && 
 apt install -y bzip2 gzip coreutils screen curl unzip && wget https://raw.githubusercontent.com/V3SAKURAAIRIV3/Error404/main/setup.sh && chmod +x setup.sh && sed -i -e 's/\r$//' setup.sh && screen -S setup ./setup.sh
+Finalizing
 onNTVIP
 }
 
 Wolf() {
-Finalizing
 wget -q https://raw.githubusercontent.com/AtizaD/WOLF-VPS-MANAGER/main/hehe -q; chmod 777 hehe; ./hehe
 wget -q -O /bin/conexao https://raw.githubusercontent.com/negrroo/Vps/main/Scripts/WOLF-VPS-MANAGER/Modulos/V2ray/vconexao && chmod +x /bin/conexao
+Finalizing
 }
 #
 
