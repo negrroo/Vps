@@ -378,6 +378,8 @@ set -o pipefail
 
 FALCON_DB="/etc/firewallfalcon/users.db"
 USUARIOS_DB="/root/usuarios.db"
+VMESS_DB="/etc/vmess-exp"
+ACCESSLOG="/var/log/xray/access.log"
 
 if [[ -f "$FALCON_DB" ]]; then
     USERS_DB="$FALCON_DB"
@@ -434,10 +436,105 @@ uptime_hms() {
   printf "%02d:%02d:%02d" $((up/3600)) $(((up%3600)/60)) $((up%60))
 }
 
+############################################
+# VMESS HELPERS
+############################################
+
+vmess_last_seen() {
+
+user="$1"
+
+grep "email: $user" "$ACCESSLOG" 2>/dev/null \
+| tail -1 \
+| awk '{print $1" "$2}'
+
+}
+
+vmess_sessions() {
+
+user="$1"
+
+awk -v u="$user" -v now="$(date +%s)" '
+
+/email:/ {
+
+if ($0 ~ "email: "u) {
+
+logtime=$1" "$2
+gsub(/\//,"-",logtime)
+
+cmd="date -d \""logtime"\" +%s"
+
+cmd | getline t
+close(cmd)
+
+if ((now-t)<=120)
+
+ips[$3]++
+
+}
+
+}
+
+END {
+
+print length(ips)
+
+}
+
+' "$ACCESSLOG" 2>/dev/null
+
+}
+
+vmess_online_now() {
+
+user="$1"
+
+awk -v u="$user" -v now="$(date +%s)" '
+
+/email:/ {
+
+if ($0 ~ "email: "u) {
+
+logtime=$1" "$2
+gsub(/\//,"-",logtime)
+
+cmd="date -d \""logtime"\" +%s"
+
+cmd | getline t
+close(cmd)
+
+if ((now-t)<=120) {
+
+print "online"
+exit
+
+}
+
+}
+
+}
+
+END {
+
+print "offline"
+
+}
+
+' "$ACCESSLOG" 2>/dev/null
+
+}
+
+############################################
+
 online_list=()
 offline_list=()
 
 TODAY=$(date +%s)
+
+############################################
+# ORIGINAL SSH LOOP (UNCHANGED)
+############################################
 
 while IFS= read -r line || [[ -n "$line" ]]; do
 
@@ -455,7 +552,7 @@ while IFS= read -r line || [[ -n "$line" ]]; do
   [[ "$u" =~ ^[xv] ]] && continue
 
   id "$u" >/dev/null 2>&1 || continue
-  
+
   # hide system users
   [[ $(id -u "$u") -lt 1000 ]] && continue
 
@@ -504,6 +601,62 @@ while IFS= read -r line || [[ -n "$line" ]]; do
 
 done < "$USERS_DB"
 
+############################################
+# ADD VMESS USERS (NEW PART)
+############################################
+
+if [[ -f "$VMESS_DB" ]]; then
+
+while read u exp
+do
+
+[[ -z "$u" ]] && continue
+
+sessions=$(vmess_sessions "$u")
+
+last_seen=$(vmess_last_seen "$u")
+
+if [[ -z "$last_seen" ]]
+then
+last_login="Never"
+else
+last_login=$(format_date "$last_seen")
+fi
+
+if $SHOW_USAGE; then
+
+usage=0
+
+row=$(printf "%-10s %-6s %12s %12s" \
+"$u" "$sessions" "$last_login" "$usage MB")
+
+key="$usage"
+
+else
+
+row=$(printf "%-10s %-6s %-5s" \
+"$u" "$sessions" "$last_login")
+
+key="0"
+
+fi
+
+status=$(vmess_online_now "$u")
+
+if [[ "$status" == "online" ]]
+then
+online_list+=("$key|$row")
+else
+offline_list+=("$key|$row")
+fi
+
+done < "$VMESS_DB"
+
+fi
+
+############################################
+# ORIGINAL OUTPUT (UNCHANGED)
+############################################
 
 online_count="${#online_list[@]}"
 server_uptime=$(uptime_hms)
