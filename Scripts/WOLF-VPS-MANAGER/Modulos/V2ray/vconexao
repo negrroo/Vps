@@ -715,6 +715,7 @@ SCOLOR='\033[0m'
                 echo -e "\n\033[1;32mDOWNLOADING INSTALLER...\033[0m"
                 wget -q -O /usr/local/sbin/install-vmess https://raw.githubusercontent.com/negrroo/Vps/main/Scripts/WOLF-VPS-MANAGER/Modulos/V2ray/install-vmess && chmod +x /usr/local/sbin/install-vmess
                 wget -q -O /usr/local/sbin/vmess-modules https://raw.githubusercontent.com/negrroo/Vps/main/Scripts/WOLF-VPS-MANAGER/Modulos/V2ray/vmess-modules && chmod +x /usr/local/sbin/vmess-modules
+                wget -q -O /usr/local/sbin/update-vmess https://raw.githubusercontent.com/negrroo/Vps/main/Scripts/WOLF-VPS-MANAGER/Modulos/V2ray/update-vmess && chmod +x /usr/local/sbin/update-vmess
 #                wget -q -O /bin/conexao https://raw.githubusercontent.com/negrroo/Vps/main/Scripts/WOLF-VPS-MANAGER/Modulos/V2ray/vconexao && chmod +x /bin/conexao
                 echo ""
                 echo -e "\033[1;32mINSTALLING V2RAY CORE...\033[0m"
