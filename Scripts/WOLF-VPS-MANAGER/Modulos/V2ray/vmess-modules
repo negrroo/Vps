@@ -361,7 +361,6 @@ user="${users[$num]}"
 if [[ -z "$user" ]]; then
 echo ""
 echo -e "\033[1;31mInvalid selection\033[0m"
-read -p $'\033[1;31m◇ ENTER to return to MENU\033[0m'
 exit
 fi
 
@@ -425,8 +424,6 @@ echo ""
 echo -e "\033[1;32m◇ User $user successfully RENEWED\033[0m"
 echo -e "\033[1;36mNew Expiry:\033[1;37m $newexp"
 echo ""
-
-read -p $'\033[1;31m◇ ENTER to return to MENU\033[0m'
 
 EOF
 
@@ -764,8 +761,6 @@ echo ""
 echo -e "\033[1;36mTotal Online:\033[1;37m $i"
 echo ""
 
-read -p $'\033[1;31m◇ ENTER to return to MENU\033[0m'
-
 EOF
 
 ########################
@@ -874,8 +869,6 @@ fi
 
 echo -e "\033[1;36mTotal Active Users:\033[1;37m $i"
 echo ""
-
-read -p $'\033[1;31m◇ ENTER to return to MENU\033[0m'
 
 rm -f /tmp/vmess_ip_raw
 
@@ -1074,7 +1067,6 @@ echo -e "\033[1;36mTotal Users:\033[1;37m $TOTAL_USERS"
 echo -e "\033[1;36mServer Traffic:\033[1;37m $(convert_unit $TOTAL_MB)"
 
 echo ""
-read -p $'\033[1;31m◇ ENTER to return to MENU\033[0m'
 
 EOF
 
