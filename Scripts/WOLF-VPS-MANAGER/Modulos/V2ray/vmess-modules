@@ -1413,7 +1413,7 @@ do
 today_epoch=$(date -d "$today" +%s)
 exp_epoch=$(date -d "$exp" +%s 2>/dev/null)
 
-if [[ "$today_epoch" -gt "$exp_epoch" && "$status" = "active" ]]; then
+if [[ "$today_epoch" -ge "$exp_epoch" && "$status" = "active" ]]; then
 
 ########################################
 # find UUID
@@ -1490,7 +1490,7 @@ chmod +x /usr/local/sbin/*-vmess
 
 
 (crontab -l 2>/dev/null; echo "*/2 * * * * /usr/local/sbin/check-vmess-ip") | crontab -
-(crontab -l 2>/dev/null; echo "0 0 * * * /usr/local/sbin/check-vmess-exp") | crontab -
+(crontab -l 2>/dev/null; echo "0 * * * * /usr/local/sbin/check-vmess-exp") | crontab -
 
 echo ""
 echo "VMESS modules ready"
