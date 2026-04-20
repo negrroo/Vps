@@ -435,9 +435,56 @@ cat > /usr/local/sbin/lock-vmess <<'EOF'
 #!/bin/bash
 
 CONFIG="/usr/local/etc/xray/config.json"
+EXPDB="/etc/vmess-exp"
+
+lock_user(){
+
+user="$1"
+
+uuid=$(grep -A1 "\"email\": \"$user\"" $CONFIG \
+| grep '"id"' \
+| head -1 \
+| cut -d'"' -f4)
+
+[[ -z "$uuid" ]] && return
+
+first=${uuid:0:1}
+rest=${uuid:1}
+
+next=$(echo "$first" | tr 0-8a-yA-Y 1-9b-zB-Z)
+
+[[ "$first" = "9" ]] && next=0
+[[ "$first" = "z" ]] && next=a
+[[ "$first" = "Z" ]] && next=A
+
+newuuid="${next}${rest}"
+
+sed -i "s/$uuid/$newuuid/g" $CONFIG
+
+oldexp=$(grep "^$user " $EXPDB | awk '{print $2}')
+
+sed -i "s/^$user $oldexp active/$user $oldexp locked/" $EXPDB
+
+echo "$user locked"
+
+}
+
+########################################
+# CLI MODE (used by expire script)
+########################################
+
+if [[ ! -z "$1" ]]; then
+lock_user "$1"
+systemctl restart xray 2>/dev/null
+exit
+fi
+
+########################################
+# INTERACTIVE MODE
+########################################
 
 clear
-tput setaf 7 ; tput setab 4 ; tput bold
+tput setaf 7;tput setab 4;tput bold
 printf '%32s%s%-13s\n' "  🔒 Lock VMESS User 🔒 "
 tput sgr0
 
@@ -445,106 +492,40 @@ echo ""
 echo -e "\033[1;33m◇ LIST OF ACTIVE USERS:\033[0m"
 echo ""
 
-if [[ ! -f /etc/vmess-exp ]]; then
-echo "No users found"
-exit
-fi
-
 i=0
-unset user_list
 
 while read user exp status
 do
-if [[ "$status" = "active" ]]; then
+
+[[ "$status" != "active" ]] && continue
 
 i=$((i+1))
-num=$(printf "%02d" $i)
 
-echo -e "\033[1;31m[$num] \033[1;32m$user\033[0m"
+printf "\033[1;31m[%02d]\033[1;32m %s \033[1;37m(exp: %s)\033[0m\n" $i "$user" "$exp"
 
-user_list+="\n$num:$user"
+users[$i]=$user
 
-fi
-done < /etc/vmess-exp
-
+done < $EXPDB
 
 echo ""
-echo -ne "\033[1;32m◇ Enter user number:\033[0m "
-read option
 
-user=$(echo -e "$user_list" | grep "^$option:" | cut -d: -f2)
+read -p $'\033[1;32m◇ Enter user number:\033[0m ' num
 
-[[ -z "$user" ]] && echo "Invalid user" && exit
+user="${users[$num]}"
 
+[[ -z "$user" ]] && exit
 
-################################
-# find UUID near email
-################################
+lock_user "$user"
 
-uuid=$(awk -v u="$user" '
-
-$0 ~ /"email"/ && $0 ~ u {
-
-for(i=NR;i>=1;i--){
-
-getline line < FILENAME
-
-}
-
-}
-
-' $CONFIG)
-
-# simpler approach:
-
-uuid=$(grep -n "\"email\".*$user" $CONFIG | while IFS=: read line_num _; do
-
-sed -n "1,${line_num}p" $CONFIG | tac | grep -m1 '"id"' | head -1
-
-done | cut -d'"' -f4)
-
-[[ -z "$uuid" ]] && echo "UUID not found" && exit
-
-
-################################
-# shift first character
-################################
-
-first=${uuid:0:1}
-
-shifted=$(echo "$first" | tr '0123456789abcdef' '123456789abcdef0')
-
-new_uuid="${shifted}${uuid:1}"
-
-
-################################
-# replace UUID once
-################################
-
-sed -i "0,/$uuid/s//$new_uuid/" $CONFIG
-
-
-################################
-# update status
-################################
-
-expdate=$(grep "^$user " /etc/vmess-exp | awk '{print $2}')
-
-sed -i "s/^$user .* active/$user $expdate locked/" /etc/vmess-exp
-
-
-################################
-# restart xray
-################################
-
-systemctl restart xray
-
+systemctl restart xray 2>/dev/null
 
 echo ""
-echo -e "\E[41;1;37m◇ User $user successfully LOCKED \E[0m"
+echo -e "\033[1;32mUser locked successfully\033[0m"
 echo ""
 
 EOF
+
+chmod +x /usr/local/sbin/lock-vmess
 
 ########################
 # UNLOCK USER
