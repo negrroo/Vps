@@ -383,19 +383,12 @@ status=$(grep "^$user " /etc/vmess-exp | awk '{print $3}')
 
 if [[ "$status" = "locked" ]]; then
 
-uuid=$(awk -v user="$user" '
+uuid=$(grep -A1 "\"email\": \"$user\"" $CONFIG \
+| grep '"id"' \
+| head -1 \
+| cut -d'"' -f4)
 
-/"email":/ {
-if($0 ~ user){found=1}
-}
-
-found && /"id":/ {
-gsub(/[",]/,"")
-print $2
-exit
-}
-
-' $CONFIG)
+[[ -z "$uuid" ]] && echo "UUID not found" && exit
 
 first=${uuid:0:1}
 rest=${uuid:1}
@@ -408,7 +401,7 @@ prev=$(echo "$first" | tr 1-9b-zB-Z 0-8a-yA-Y)
 
 newuuid="${prev}${rest}"
 
-sed -i "s/$uuid/$newuuid/" $CONFIG
+sed -i "s/$uuid/$newuuid/g" $CONFIG
 
 fi
 
@@ -431,6 +424,8 @@ echo -e "\033[1;36mNew Expiry:\033[1;37m $newexp"
 echo ""
 
 EOF
+
+chmod +x /usr/local/sbin/renew-vmess
 
 ########################
 # LOCK USER
