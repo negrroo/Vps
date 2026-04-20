@@ -334,10 +334,10 @@ EOF
 cat > /usr/local/sbin/renew-vmess <<'EOF'
 #!/bin/bash
 
-CONFIG="/usr/local/etc/xray/config.json"
+EXPDB="/etc/vmess-exp"
 
 clear
-tput setaf 7 ; tput setab 4 ; tput bold
+tput setaf 7;tput setab 4;tput bold
 printf '%32s%s%-13s\n' "  🔄 Renew VMESS User 🔄 "
 tput sgr0
 
@@ -351,75 +351,35 @@ while read user exp status
 do
 
 i=$((i+1))
+
 printf "\033[1;31m[%02d]\033[1;32m %s \033[1;37m(exp: %s)\033[0m\n" $i "$user" "$exp"
 
 users[$i]=$user
 
-done < /etc/vmess-exp
-
+done < $EXPDB
 
 echo ""
+
 read -p $'\033[1;32m◇ Enter user number:\033[0m ' num
 
 user="${users[$num]}"
 
-if [[ -z "$user" ]]; then
-echo ""
-echo -e "\033[1;31mInvalid selection\033[0m"
-exit
-fi
-
+[[ -z "$user" ]] && exit
 
 echo ""
+
 read -p $'\033[1;32m◇ Extend days:\033[0m ' days
 
 newexp=$(date -d "$days days" +"%Y-%m-%d")
 
-status=$(grep "^$user " /etc/vmess-exp | awk '{print $3}')
+oldexp=$(grep "^$user " $EXPDB | awk '{print $2}')
 
-####################################
-# if locked → unlock UUID (-1)
-####################################
+sed -i "s/^$user $oldexp .*/$user $newexp active/" $EXPDB
 
-if [[ "$status" = "locked" ]]; then
-
-uuid=$(grep -A1 "\"email\": \"$user\"" $CONFIG \
-| grep '"id"' \
-| head -1 \
-| cut -d'"' -f4)
-
-[[ -z "$uuid" ]] && echo "UUID not found" && exit
-
-first=${uuid:0:1}
-rest=${uuid:1}
-
-prev=$(echo "$first" | tr 1-9b-zB-Z 0-8a-yA-Y)
-
-[[ "$first" = "0" ]] && prev=9
-[[ "$first" = "a" ]] && prev=z
-[[ "$first" = "A" ]] && prev=Z
-
-newuuid="${prev}${rest}"
-
-sed -i "s/$uuid/$newuuid/g" $CONFIG
-
-fi
-
-
-####################################
-# update expiry date
-####################################
-
-oldexp=$(grep "^$user " /etc/vmess-exp | awk '{print $2}')
-
-sed -i "s/^$user $oldexp .*/$user $newexp active/" /etc/vmess-exp
-
-
-systemctl restart xray 2>/dev/null
-
+unlock-vmess "$user"
 
 echo ""
-echo -e "\033[1;32m◇ User $user successfully RENEWED\033[0m"
+echo -e "\033[1;32mUser renewed successfully\033[0m"
 echo -e "\033[1;36mNew Expiry:\033[1;37m $newexp"
 echo ""
 
