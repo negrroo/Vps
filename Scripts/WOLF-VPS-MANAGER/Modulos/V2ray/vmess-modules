@@ -1323,13 +1323,12 @@ chmod +x /usr/local/sbin/config-vmess
 cat > /usr/local/sbin/check-vmess-exp <<'EOF'
 #!/bin/bash
 
-CONFIG="/usr/local/etc/xray/config.json"
 EXPDB="/etc/vmess-exp"
 
-today=$(date +%Y-%m-%d)
+today=$(date +%s)
 
 clear
-tput setaf 7 ; tput setab 4 ; tput bold
+tput setaf 7;tput setab 4;tput bold
 printf '%32s%s%-13s\n' "  🔒 Auto Lock Expired Users 🔒 "
 tput sgr0
 
@@ -1342,80 +1341,30 @@ i=0
 while read user exp status
 do
 
-today_epoch=$(date -d "$today" +%s)
 exp_epoch=$(date -d "$exp" +%s 2>/dev/null)
 
-if [[ "$today_epoch" -ge "$exp_epoch" && "$status" = "active" ]]; then
+if [[ "$today" -ge "$exp_epoch" && "$status" = "active" ]]; then
 
-########################################
-# find UUID
-########################################
-
-uuid=$(awk -v user="$user" '
-
-/"email":/ {
-if($0 ~ user){found=1}
-}
-
-found && /"id":/ {
-gsub(/[",]/,"")
-print $2
-exit
-}
-
-' $CONFIG)
-
-########################################
-# lock UUID (+1 first char)
-########################################
-
-first=${uuid:0:1}
-rest=${uuid:1}
-
-next=$(echo "$first" | tr 0-8a-yA-Y 1-9b-zB-Z)
-
-[[ "$first" = "9" ]] && next=0
-[[ "$first" = "z" ]] && next=a
-[[ "$first" = "Z" ]] && next=A
-
-newuuid="${next}${rest}"
-
-sed -i "s/$uuid/$newuuid/" $CONFIG
-
-########################################
-# update status file
-########################################
-
-sed -i "s/^$user $exp active/$user $exp locked/" $EXPDB
-
+lock-vmess "$user"
 
 i=$((i+1))
-num=$(printf "%02d" $i)
 
-echo -e "\033[1;31m[$num]\033[1;32m $user\033[1;37m expired → LOCKED\033[0m"
+printf "\033[1;31m[%02d]\033[1;32m %s expired → LOCKED\033[0m\n" $i "$user"
 
 fi
 
 done < $EXPDB
 
 
-########################################
-
-if [[ "$i" = "0" ]]; then
-
-echo -e "\033[1;32mNo expired users\033[0m"
-
-fi
-
-
-systemctl restart xray 2>/dev/null
-
+[[ "$i" = "0" ]] && echo -e "\033[1;32mNo expired users\033[0m"
 
 echo ""
 echo -e "\033[1;36mTotal Locked:\033[1;37m $i"
 echo ""
 
 EOF
+
+chmod +x /usr/local/sbin/check-vmess-exp
 
 
 chmod +x /usr/local/sbin/*-vmess
