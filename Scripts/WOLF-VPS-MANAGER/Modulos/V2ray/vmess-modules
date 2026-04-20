@@ -336,6 +336,32 @@ cat > /usr/local/sbin/renew-vmess <<'EOF'
 
 EXPDB="/etc/vmess-exp"
 
+####################################
+# direct mode
+####################################
+
+if [[ ! -z "$1" && ! -z "$2" ]]; then
+
+user="$1"
+days="$2"
+
+oldexp=$(grep "^$user " "$EXPDB" | awk '{print $2}')
+
+[[ -z "$oldexp" ]] && exit
+
+newexp=$(date -d "$days days" +"%Y-%m-%d")
+
+sed -i "s/^$user $oldexp .*/$user $newexp active/" "$EXPDB"
+
+systemctl restart xray 2>/dev/null
+
+exit
+fi
+
+####################################
+# menu mode
+####################################
+
 clear
 tput setaf 7;tput setab 4;tput bold
 printf '%32s%s%-13s\n' "  🔄 Renew VMESS User 🔄 "
@@ -356,30 +382,32 @@ printf "\033[1;31m[%02d]\033[1;32m %s \033[1;37m(exp: %s)\033[0m\n" $i "$user" "
 
 users[$i]=$user
 
-done < $EXPDB
+done < "$EXPDB"
+
 
 echo ""
-
 read -p $'\033[1;32m◇ Enter user number:\033[0m ' num
 
 user="${users[$num]}"
 
 [[ -z "$user" ]] && exit
 
-echo ""
 
+echo ""
 read -p $'\033[1;32m◇ Extend days:\033[0m ' days
+
+
+oldexp=$(grep "^$user " "$EXPDB" | awk '{print $2}')
 
 newexp=$(date -d "$days days" +"%Y-%m-%d")
 
-oldexp=$(grep "^$user " $EXPDB | awk '{print $2}')
+sed -i "s/^$user $oldexp .*/$user $newexp active/" "$EXPDB"
 
-sed -i "s/^$user $oldexp .*/$user $newexp active/" $EXPDB
+systemctl restart xray 2>/dev/null
 
-unlock-vmess "$user"
 
 echo ""
-echo -e "\033[1;32mUser renewed successfully\033[0m"
+echo -e "\033[1;32mUser $user successfully RENEWED\033[0m"
 echo -e "\033[1;36mNew Expiry:\033[1;37m $newexp"
 echo ""
 
@@ -392,54 +420,35 @@ EOF
 cat > /usr/local/sbin/lock-vmess <<'EOF'
 #!/bin/bash
 
-CONFIG="/usr/local/etc/xray/config.json"
 EXPDB="/etc/vmess-exp"
 
-lock_user(){
+####################################
+# direct mode
+####################################
+
+if [[ ! -z "$1" ]]; then
 
 user="$1"
 
-uuid=$(grep -A1 "\"email\": \"$user\"" $CONFIG \
-| grep '"id"' \
-| head -1 \
-| cut -d'"' -f4)
+line=$(grep "^$user " "$EXPDB")
 
-[[ -z "$uuid" ]] && return
+[[ -z "$line" ]] && exit
 
-first=${uuid:0:1}
-rest=${uuid:1}
+exp=$(echo "$line" | awk '{print $2}')
+status=$(echo "$line" | awk '{print $3}')
 
-next=$(echo "$first" | tr 0-8a-yA-Y 1-9b-zB-Z)
+[[ "$status" = "locked" ]] && exit
 
-[[ "$first" = "9" ]] && next=0
-[[ "$first" = "z" ]] && next=a
-[[ "$first" = "Z" ]] && next=A
+sed -i "s/^$user $exp active/$user $exp locked/" "$EXPDB"
 
-newuuid="${next}${rest}"
-
-sed -i "s/$uuid/$newuuid/g" $CONFIG
-
-oldexp=$(grep "^$user " $EXPDB | awk '{print $2}')
-
-sed -i "s/^$user $oldexp active/$user $oldexp locked/" $EXPDB
-
-echo "$user locked"
-
-}
-
-########################################
-# CLI MODE (used by expire script)
-########################################
-
-if [[ ! -z "$1" ]]; then
-lock_user "$1"
 systemctl restart xray 2>/dev/null
+
 exit
 fi
 
-########################################
-# INTERACTIVE MODE
-########################################
+####################################
+# menu mode (original UI)
+####################################
 
 clear
 tput setaf 7;tput setab 4;tput bold
@@ -463,22 +472,24 @@ printf "\033[1;31m[%02d]\033[1;32m %s \033[1;37m(exp: %s)\033[0m\n" $i "$user" "
 
 users[$i]=$user
 
-done < $EXPDB
+done < "$EXPDB"
+
 
 echo ""
-
 read -p $'\033[1;32m◇ Enter user number:\033[0m ' num
 
 user="${users[$num]}"
 
 [[ -z "$user" ]] && exit
 
-lock_user "$user"
+exp=$(grep "^$user " "$EXPDB" | awk '{print $2}')
+
+sed -i "s/^$user $exp active/$user $exp locked/" "$EXPDB"
 
 systemctl restart xray 2>/dev/null
 
 echo ""
-echo -e "\033[1;32mUser locked successfully\033[0m"
+echo -e "\033[1;32mUser $user successfully LOCKED\033[0m"
 echo ""
 
 EOF
@@ -490,54 +501,35 @@ EOF
 cat > /usr/local/sbin/unlock-vmess <<'EOF'
 #!/bin/bash
 
-CONFIG="/usr/local/etc/xray/config.json"
 EXPDB="/etc/vmess-exp"
 
-unlock_user(){
+####################################
+# direct mode
+####################################
+
+if [[ ! -z "$1" ]]; then
 
 user="$1"
 
-uuid=$(grep -A1 "\"email\": \"$user\"" $CONFIG \
-| grep '"id"' \
-| head -1 \
-| cut -d'"' -f4)
+line=$(grep "^$user " "$EXPDB")
 
-[[ -z "$uuid" ]] && return
+[[ -z "$line" ]] && exit
 
-first=${uuid:0:1}
-rest=${uuid:1}
+exp=$(echo "$line" | awk '{print $2}')
+status=$(echo "$line" | awk '{print $3}')
 
-prev=$(echo "$first" | tr 1-9b-zB-Z 0-8a-yA-Y)
+[[ "$status" = "active" ]] && exit
 
-[[ "$first" = "0" ]] && prev=9
-[[ "$first" = "a" ]] && prev=z
-[[ "$first" = "A" ]] && prev=Z
+sed -i "s/^$user $exp locked/$user $exp active/" "$EXPDB"
 
-newuuid="${prev}${rest}"
-
-sed -i "s/$uuid/$newuuid/g" $CONFIG
-
-oldexp=$(grep "^$user " $EXPDB | awk '{print $2}')
-
-sed -i "s/^$user $oldexp locked/$user $oldexp active/" $EXPDB
-
-echo "$user unlocked"
-
-}
-
-########################################
-# CLI MODE
-########################################
-
-if [[ ! -z "$1" ]]; then
-unlock_user "$1"
 systemctl restart xray 2>/dev/null
+
 exit
 fi
 
-########################################
-# INTERACTIVE MODE
-########################################
+####################################
+# menu mode
+####################################
 
 clear
 tput setaf 7;tput setab 4;tput bold
@@ -561,22 +553,24 @@ printf "\033[1;31m[%02d]\033[1;32m %s \033[1;37m(exp: %s)\033[0m\n" $i "$user" "
 
 users[$i]=$user
 
-done < $EXPDB
+done < "$EXPDB"
+
 
 echo ""
-
 read -p $'\033[1;32m◇ Enter user number:\033[0m ' num
 
 user="${users[$num]}"
 
 [[ -z "$user" ]] && exit
 
-unlock_user "$user"
+exp=$(grep "^$user " "$EXPDB" | awk '{print $2}')
+
+sed -i "s/^$user $exp locked/$user $exp active/" "$EXPDB"
 
 systemctl restart xray 2>/dev/null
 
 echo ""
-echo -e "\033[1;32mUser unlocked successfully\033[0m"
+echo -e "\033[1;32mUser $user successfully UNLOCKED\033[0m"
 echo ""
 
 EOF
@@ -1332,9 +1326,11 @@ do
 
 exp_epoch=$(date -d "$exp" +%s 2>/dev/null)
 
+[[ -z "$exp_epoch" ]] && continue
+
 if [[ "$today" -ge "$exp_epoch" && "$status" = "active" ]]; then
 
-lock-vmess "$user"
+/usr/local/sbin/lock-vmess "$user"
 
 i=$((i+1))
 
@@ -1342,7 +1338,7 @@ printf "\033[1;31m[%02d]\033[1;32m %s expired → LOCKED\033[0m\n" $i "$user"
 
 fi
 
-done < $EXPDB
+done < "$EXPDB"
 
 
 [[ "$i" = "0" ]] && echo -e "\033[1;32mNo expired users\033[0m"
