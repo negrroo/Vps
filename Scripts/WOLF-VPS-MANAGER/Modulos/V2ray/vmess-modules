@@ -385,8 +385,6 @@ echo ""
 
 EOF
 
-chmod +x /usr/local/sbin/renew-vmess
-
 ########################
 # LOCK USER
 ########################
@@ -485,8 +483,6 @@ echo ""
 
 EOF
 
-chmod +x /usr/local/sbin/lock-vmess
-
 ########################
 # UNLOCK USER
 ########################
@@ -584,8 +580,6 @@ echo -e "\033[1;32mUser unlocked successfully\033[0m"
 echo ""
 
 EOF
-
-chmod +x /usr/local/sbin/unlock-vmess
 
 ########################
 # ONLINE USERS
@@ -1007,9 +1001,6 @@ echo ""
 
 EOF
 
-chmod +x /usr/local/sbin/usage-vmess
-
-
 ########################
 # LIVE MONITOR
 ########################
@@ -1314,8 +1305,6 @@ echo ""
 
 EOF
 
-chmod +x /usr/local/sbin/config-vmess
-
 ########################
 # EXPIRY LOCK
 ########################
@@ -1364,15 +1353,19 @@ echo ""
 
 EOF
 
-chmod +x /usr/local/sbin/check-vmess-exp
+########################$$$$#########################
 
-
+# Chmod for all
 chmod +x /usr/local/sbin/*-vmess
 
 
-(crontab -l 2>/dev/null; echo "*/2 * * * * /usr/local/sbin/check-vmess-ip") | crontab -
-(crontab -l 2>/dev/null; echo "0 * * * * /usr/local/sbin/check-vmess-exp") | crontab -
+# Cron setup
+(crontab -l 2>/dev/null | grep -q "check-vmess-ip") || \
+(crontab -l 2>/dev/null; echo "*/2 * * * * /usr/local/sbin/check-vmess-ip >/dev/null 2>&1") | crontab -
+(crontab -l 2>/dev/null | grep -q "check-vmess-exp") || \
+(crontab -l 2>/dev/null; echo "0 * * * * /usr/local/sbin/check-vmess-exp >/dev/null 2>&1") | crontab -
 
+# Echos
 echo ""
 echo "VMESS modules ready"
 echo ""
