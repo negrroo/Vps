@@ -56,6 +56,30 @@ command -v crontab >/dev/null 2>&1 || {
 	}
 }
 
+#Firewall
+Firewall() {
+########################################
+# ensure ufw installed
+########################################
+
+if ! command -v ufw >/dev/null 2>&1; then
+echo "Installing UFW..."
+apt-get update -y >/dev/null 2>&1
+apt-get install -y ufw >/dev/null 2>&1
+fi
+
+########################################
+# firewall rules
+########################################
+
+ufw allow 22 >/dev/null 2>&1
+ufw allow 80 >/dev/null 2>&1
+ufw allow 443 >/dev/null 2>&1
+ufw allow 8443 >/dev/null 2>&1
+ufw --force enable >/dev/null 2>&1
+ufw reload >/dev/null 2>&1
+}
+
 #Finalizing
 Finalizing() {
 # Time Change Step 1 or Step 2
@@ -1318,6 +1342,7 @@ onNTVIP
 }
 
 Wolf() {
+Firewall
 wget -q https://raw.githubusercontent.com/AtizaD/WOLF-VPS-MANAGER/main/hehe -q; chmod 777 hehe; ./hehe
 wget -q -O /bin/conexao https://raw.githubusercontent.com/negrroo/Vps/main/Scripts/WOLF-VPS-MANAGER/Modulos/V2ray/vconexao && chmod +x /bin/conexao
 Finalizing
