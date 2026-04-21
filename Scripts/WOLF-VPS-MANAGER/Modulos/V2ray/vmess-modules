@@ -1542,7 +1542,7 @@ EOF
 ########################$$$$#########################
 
 # Chmod for all
-chmod +x /usr/local/sbin/*-vmess
+chmod +x /usr/local/sbin/*vmess*
 
 
 # Cron setup
