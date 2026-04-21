@@ -305,6 +305,10 @@ send_telegram() {
         -d text="$MSG" >/dev/null
 }
 
+#########################################################
+# SSH USERS
+#########################################################
+
 # Get all normal users (UID >= 1000)
 for user in $(awk -F: '$3 >= 1000 {print $1}' /etc/passwd); do
     EXP_DATE=$(chage -l "$user" | awk -F': ' '/Account expires/{print $2}')
@@ -315,20 +319,64 @@ for user in $(awk -F: '$3 >= 1000 {print $1}' /etc/passwd); do
     [[ -z "$EXP_TS" ]] && continue
 
     if [[ "$EXP_TS" -le "$TODAY" ]]; then
-        # User is expired
-        if ! grep -qx "$user" "$STATE_FILE"; then
+
+        if ! grep -qx "ssh:$user" "$STATE_FILE"; then
+
             send_telegram "⚠️ SSH user expired
 👤 User: $user
 🖥 Host: $HOSTNAME
 🕒 $EXP_DATE"
 
-            echo "$user" >> "$STATE_FILE"
+            echo "ssh:$user" >> "$STATE_FILE"
         fi
+
     else
-        # User is NOT expired → remove from state file if exists (renewed)
-        sed -i "/^$user$/d" "$STATE_FILE"
+
+        sed -i "/^ssh:$user$/d" "$STATE_FILE"
+
     fi
 done
+
+
+#########################################################
+# VMESS USERS
+#########################################################
+
+VMESS_DB="/etc/vmess-exp"
+
+if [[ -f "$VMESS_DB" ]]; then
+
+while read user exp status
+do
+
+    [[ -z "$user" ]] && continue
+
+    EXP_TS=$(date -d "$exp" +%s 2>/dev/null)
+    [[ -z "$EXP_TS" ]] && continue
+
+    if [[ "$EXP_TS" -le "$TODAY" ]]; then
+
+        if ! grep -qx "vmess:$user" "$STATE_FILE"; then
+
+            send_telegram "⚠️ VMESS user expired
+👤 User: $user
+🖥 Host: $HOSTNAME
+🕒 $exp"
+
+            echo "vmess:$user" >> "$STATE_FILE"
+
+        fi
+
+    else
+
+        sed -i "/^vmess:$user$/d" "$STATE_FILE"
+
+    fi
+
+done < "$VMESS_DB"
+
+fi
+
 EOF
 }
 
