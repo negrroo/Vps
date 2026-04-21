@@ -560,40 +560,10 @@ print length(ips)
 
 vmess_online_now() {
 
-user="$1"
-
-awk -v u="$user" -v now="$(date +%s)" '
-
-/email:/ {
-
-if ($0 ~ "email: "u) {
-
-logtime=$1" "$2
-gsub(/\//,"-",logtime)
-
-cmd="date -d \""logtime"\" +%s"
-
-cmd | getline t
-close(cmd)
-
-if ((now-t)<=120) {
-
-print "online"
-exit
-
-}
-
-}
-
-}
-
-END {
-
-print "offline"
-
-}
-
-' "$ACCESSLOG" 2>/dev/null
+grep "$(date +"%Y/%m/%d %H:%M")" /var/log/xray/access.log \
+| grep "email: $1" \
+| head -n 1 \
+| wc -l
 
 }
 
