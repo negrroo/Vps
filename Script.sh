@@ -56,8 +56,8 @@ command -v crontab >/dev/null 2>&1 || {
 	}
 }
 
-#Firewall
-Firewall() {
+#Firewallx
+Firewallx() {
 ########################################
 # ensure ufw installed
 ########################################
@@ -1342,7 +1342,7 @@ onNTVIP
 }
 
 Wolf() {
-Firewall
+Firewallx
 wget -q https://raw.githubusercontent.com/AtizaD/WOLF-VPS-MANAGER/main/hehe -q; chmod 777 hehe; ./hehe
 wget -q -O /bin/conexao https://raw.githubusercontent.com/negrroo/Vps/main/Scripts/WOLF-VPS-MANAGER/Modulos/V2ray/vconexao && chmod +x /bin/conexao
 Finalizing
