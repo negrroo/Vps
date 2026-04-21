@@ -583,16 +583,10 @@ cat > /usr/local/sbin/cek-vmess <<'EOF'
 #!/bin/bash
 
 CONFIG="/usr/local/etc/xray/config.json"
-LOGDIR="/var/log/xray"
 ACCESSLOG="/var/log/xray/access.log"
 
-################################
-# ensure log directory exists
-################################
-
-mkdir -p $LOGDIR
+mkdir -p /var/log/xray
 touch $ACCESSLOG
-
 
 ################################
 # ensure logging enabled
@@ -624,27 +618,13 @@ echo ""
 
 
 ################################
-# users active in last 60 sec
+# fast detection
 ################################
 
-NOW=$(date +%s)
+current_minute=$(date +"%Y/%m/%d %H:%M")
 
-online=$(tail -n 200 $ACCESSLOG | while read line
-do
-
-log_time=$(echo "$line" | awk '{print $1" "$2}')
-
-log_epoch=$(date -d "$log_time" +%s 2>/dev/null)
-
-diff=$((NOW-log_epoch))
-
-if [[ $diff -le 60 ]]; then
-
-echo "$line"
-
-fi
-
-done | grep 'email:' \
+online=$(grep "$current_minute" $ACCESSLOG 2>/dev/null \
+| grep 'email:' \
 | awk -F'email:' '{print $2}' \
 | awk '{print $1}' \
 | sort -u)
@@ -671,14 +651,8 @@ fi
 done
 
 
-################################
-# no users online
-################################
-
 if [[ "$i" = "0" ]]; then
-
 echo -e "\033[1;31mNo users online\033[0m"
-
 fi
 
 
