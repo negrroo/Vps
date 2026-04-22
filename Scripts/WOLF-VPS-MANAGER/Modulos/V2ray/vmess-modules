@@ -1513,6 +1513,89 @@ done
 
 EOF
 
+########################################
+# SSH LIMIT via PAM
+########################################
+
+cat > /usr/local/sbin/install-user-limit << 'EOF'
+#!/bin/bash
+
+SSH_DB1="/root/usuarios.db"
+SSH_DB2="/etc/firewallfalcon/users.db"
+
+PAM_FILE="/etc/pam.d/sshd"
+SSH_CHECK="/usr/local/sbin/ssh-limit-check"
+
+########################################
+# SSH LIMIT via PAM
+########################################
+
+cat > $SSH_CHECK << 'CHECK'
+#!/bin/bash
+
+USER_NAME="$PAM_USER"
+
+limit=""
+
+# usuarios.db
+if [[ -f /root/usuarios.db ]]; then
+limit=$(awk -v u="$USER_NAME" '$1==u {print $2}' /root/usuarios.db)
+fi
+
+# firewallfalcon db
+if [[ -z "$limit" && -f /etc/firewallfalcon/users.db ]]; then
+limit=$(awk -F: -v u="$USER_NAME" '$1==u {print $4}' /etc/firewallfalcon/users.db)
+fi
+
+# if no limit → allow login
+[[ -z "$limit" ]] && exit 0
+
+########################################
+# count active ssh sessions
+########################################
+
+sessions=$(ps -u "$USER_NAME" -o comm= 2>/dev/null | grep sshd | wc -l)
+
+########################################
+
+if (( sessions >= limit ))
+then
+
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━"
+echo " CONNECTION LIMIT REACHED"
+echo ""
+echo " user: $USER_NAME"
+echo " allowed: $limit"
+echo " active: $sessions"
+echo "━━━━━━━━━━━━━━━━━━━━━━"
+echo ""
+
+exit 1
+
+fi
+
+exit 0
+CHECK
+
+chmod +x $SSH_CHECK
+
+
+########################################
+# add PAM rule safely (no duplicates)
+########################################
+
+sed -i '/ssh-limit-check/d' $PAM_FILE
+
+sed -i '1i account required pam_exec.so quiet /usr/local/sbin/ssh-limit-check' $PAM_FILE
+
+########################################
+
+EOF
+
+chmod +x /usr/local/sbin/install-user-limit
+bash /usr/local/sbin/install-user-limit
+
 ########################$$$$#########################
 
 # Chmod for all
