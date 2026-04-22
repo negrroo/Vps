@@ -410,7 +410,8 @@ sudo chmod +x /usr/local/bin/ssh-expiry-check.sh
 
 Expired4() {
 # add cron job (runs daily at midnight)
-(crontab -l 2>/dev/null | grep -v "ssh-expiry-check.sh"; echo "0 21 * * * /usr/local/bin/ssh-expiry-check.sh") | crontab -
+(crontab -l 2>/dev/null | grep -q "ssh-expiry-check.sh") || \
+(crontab -l 2>/dev/null; echo "0 0 * * * /usr/local/bin/ssh-expiry-check.sh >/dev/null 2>&1") | crontab -
 }
 
 LastLogin1() {
