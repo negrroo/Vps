@@ -455,6 +455,9 @@ USUARIOS_DB="/root/usuarios.db"
 VMESS_DB="/etc/vmess-exp"
 ACCESSLOG="/var/log/xray/access.log"
 
+# 🔥 limit reading to avoid 100% CPU
+TAIL_LINES=150
+
 if [[ -f "$FALCON_DB" ]]; then
     USERS_DB="$FALCON_DB"
 
@@ -511,14 +514,15 @@ uptime_hms() {
 }
 
 ############################################
-# VMESS HELPERS
+# VMESS HELPERS (FIXED ONLY)
 ############################################
 
 vmess_last_seen() {
 
 user="$1"
 
-grep "email: $user" "$ACCESSLOG" 2>/dev/null \
+tail -n $TAIL_LINES "$ACCESSLOG" 2>/dev/null \
+| grep "email: $user" \
 | tail -1 \
 | awk '{print $1" "$2}'
 
@@ -527,45 +531,60 @@ grep "email: $user" "$ACCESSLOG" 2>/dev/null \
 vmess_sessions() {
 
 user="$1"
+now=$(date +%s)
 
-awk -v u="$user" -v now="$(date +%s)" '
+tail -n $TAIL_LINES "$ACCESSLOG" 2>/dev/null \
+| grep "email: $user" \
+| awk -v now="$now" '
 
-/email:/ {
-
-if ($0 ~ "email: "u) {
-
+{
 logtime=$1" "$2
 gsub(/\//,"-",logtime)
 
 cmd="date -d \""logtime"\" +%s"
-
 cmd | getline t
 close(cmd)
 
 if ((now-t)<=120)
-
 ips[$3]++
 
 }
 
-}
-
 END {
-
 print length(ips)
-
 }
-
-' "$ACCESSLOG" 2>/dev/null
+'
 
 }
 
 vmess_online_now() {
 
-grep "$(date +"%Y/%m/%d %H:%M")" /var/log/xray/access.log \
-| grep "email: $1" \
-| head -n 1 \
-| wc -l
+user="$1"
+now=$(date +%s)
+
+tail -n $TAIL_LINES "$ACCESSLOG" 2>/dev/null \
+| grep "email: $user" \
+| tail -n 5 \
+| awk -v now="$now" '
+
+{
+logtime=$1" "$2
+gsub(/\//,"-",logtime)
+
+cmd="date -d \""logtime"\" +%s"
+cmd | getline t
+close(cmd)
+
+if ((now-t)<=60) {
+print 1
+exit
+}
+}
+
+END {
+print 0
+}
+'
 
 }
 
@@ -687,7 +706,7 @@ fi
 
 status=$(vmess_online_now "$u")
 
-if [[ "$status" == "online" ]]
+if [[ "$status" -eq 1 ]]
 then
 online_list+=("$key|$row")
 else
