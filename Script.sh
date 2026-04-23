@@ -76,6 +76,7 @@ ufw allow 22 >/dev/null 2>&1
 ufw allow 80 >/dev/null 2>&1
 ufw allow 443 >/dev/null 2>&1
 ufw allow 8443 >/dev/null 2>&1
+ufw allow 8080 >/dev/null 2>&1
 ufw --force enable >/dev/null 2>&1
 ufw reload >/dev/null 2>&1
 }
