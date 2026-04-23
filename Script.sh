@@ -305,7 +305,6 @@ sudo touch /var/lib/ssh-expiry/expired_notified.list
 sudo chmod 600 /var/lib/ssh-expiry/expired_notified.list
 Expired2
 Expired3
-Expired4
 }
 
 Expired2() {
@@ -407,12 +406,6 @@ EOF
 
 Expired3() {
 sudo chmod +x /usr/local/bin/ssh-expiry-check.sh
-}
-
-Expired4() {
-# add cron job (runs daily at midnight)
-(crontab -l 2>/dev/null | grep -q "ssh-expiry-check.sh") || \
-(crontab -l 2>/dev/null; echo "0 0 * * * /usr/local/bin/ssh-expiry-check.sh >/dev/null 2>&1") | crontab -
 }
 
 LastLogin1() {
@@ -812,16 +805,10 @@ mv "$TMP_FILE" "$STATE_FILE"
 exit 0
 EOF
 Daily2
-Daily3
 }
 
 Daily2() {
 chmod +x /usr/local/bin/ssh-usage-daily.sh
-}
-
-Daily3() {
-# add cron job (runs daily at midnight)
-(crontab -l 2>/dev/null | grep -v "ssh-usage-daily.sh"; echo "0 21 * * * /usr/local/bin/ssh-usage-daily.sh") | crontab -
 }
 
 Monthly1() {
@@ -839,16 +826,10 @@ done
 exit 0
 EOF
 Monthly2
-Monthly3
 }
 
 Monthly2() {
 chmod +x /usr/local/bin/ssh-usage-reset-month.sh
-}
-
-Monthly3() {
-# add cron job (runs daily at midnight)
-(crontab -l 2>/dev/null | grep -v "ssh-usage-reset-month.sh"; echo "0 21 1 * * /usr/local/bin/ssh-usage-reset-month.sh") | crontab -
 }
 
 Usage1() {
@@ -1027,16 +1008,10 @@ rm -f "$TMP_SORT"
 exit 0
 EOF
 Usage2
-Usage3
 }
 
 Usage2() {
 chmod +x /usr/local/bin/ssh-usage-telegram.sh
-}
-
-Usage3() {
-# add cron job (runs daily at midnight)
-(crontab -l 2>/dev/null | grep -v "ssh-usage-telegram.sh"; echo "0 21 * * * /usr/local/bin/ssh-usage-telegram.sh") | crontab -
 }
 
 Akami() {
@@ -1264,7 +1239,6 @@ exit 0
 EOF
 NoFalcon2
 NoFalcon3
-NoFalcon4
 }
 
 NoFalcon2() {
@@ -1274,11 +1248,6 @@ chmod +x /usr/local/bin/sync_users_db.sh
 NoFalcon3() {
 grep -qxF 'session optional pam_exec.so /usr/local/bin/sync_users_db.sh' /etc/pam.d/sshd || \
 sed -i '/@include common-session/a session optional pam_exec.so /usr/local/bin/sync_users_db.sh' /etc/pam.d/sshd
-}
-
-NoFalcon4() {
-# add cron job (runs daily at midnight)
-(crontab -l 2>/dev/null | grep -v "sync_users_db.sh"; echo "0 21 * * * /usr/local/bin/sync_users_db.sh") | crontab -
 }
 
 onNTVIP() {
@@ -1291,6 +1260,40 @@ grep -q '^[^#].*reboot' /etc/cron.d/auto_reboot && \
 sed -i 's|^\([^#].*reboot.*\)|#\1|' /etc/cron.d/auto_reboot
 }
 
+CronTablet() {
+CRON_TMP=$(mktemp)
+
+crontab -l 2>/dev/null > "$CRON_TMP"
+
+add_job() {
+  local schedule="$1"
+  local script="$2"
+
+  # only add if script exists
+  if [[ -x "$script" ]]; then
+    # remove old entry
+    sed -i "\|$script|d" "$CRON_TMP"
+
+    # add new one
+    echo "$schedule $script >/dev/null 2>&1" >> "$CRON_TMP"
+  fi
+}
+
+# SSH jobs
+add_job "0 0 * * *" /usr/local/bin/ssh-expiry-check.sh
+add_job "0 0 * * *" /usr/local/bin/ssh-usage-daily.sh
+add_job "0 0 1 * *" /usr/local/bin/ssh-usage-reset-month.sh
+add_job "0 0 * * *" /usr/local/bin/ssh-usage-telegram.sh
+add_job "0 0 * * *" /usr/local/bin/sync_users_db.sh
+
+# VMESS jobs
+add_job "0 * * * *" /usr/local/sbin/check-vmess-exp
+add_job "*/2 * * * *" /usr/local/sbin/check-vmess-ip
+
+crontab "$CRON_TMP"
+rm -f "$CRON_TMP"
+}
+
 ################
 
 Falcon() {
@@ -1298,6 +1301,7 @@ Daily1
 Monthly1
 Usage1
 curl -L -o install.sh "https://raw.githubusercontent.com/firewallfalcons/FirewallFalcon-Manager/main/install.sh" && chmod +x install.sh && sudo ./install.sh && rm install.sh
+CronTablet
 Finalizing
 }
 
@@ -1305,12 +1309,14 @@ Montazer() {
 NoFalcon1
 Proxy1
 wget https://raw.githubusercontent.com/MuntazerVpn/ehoop/main/installer -O installer && chmod +x installer && ./installer
+CronTablet
 Finalizing
 onMontazer
 }
 
 Dragon() {
 apt-get update -y; apt-get upgrade -y; wget https://raw.githubusercontent.com/sbatrow/DARKSSH-MANAGER/master/Dark; chmod 777 Dark; ./Dark
+CronTablet
 Finalizing
 }
 
@@ -1319,6 +1325,7 @@ NoFalcon1
 Proxy1
 # sysctl -w net.ipv6.conf.all.disable_ipv6=1 && sysctl -w net.ipv6.conf.default.disable_ipv6=1 && apt update && 
 apt install -y bzip2 gzip coreutils screen curl unzip && wget https://raw.githubusercontent.com/NETWORKTWEAKER/AUTO-SCRIPT/master/setup1.sh && chmod +x setup1.sh && sed -i -e 's/\r$//' setup1.sh && screen -S setup ./setup1.sh
+CronTablet
 Finalizing
 onNTVIP
 }
@@ -1328,6 +1335,7 @@ NoFalcon1
 Proxy1
 # sysctl -w net.ipv6.conf.all.disable_ipv6=1 && sysctl -w net.ipv6.conf.default.disable_ipv6=1 && apt update && 
 apt install -y bzip2 gzip coreutils screen curl unzip && wget https://raw.githubusercontent.com/V3SAKURAAIRIV3/Error404/main/setup.sh && chmod +x setup.sh && sed -i -e 's/\r$//' setup.sh && screen -S setup ./setup.sh
+CronTablet
 Finalizing
 onNTVIP
 }
@@ -1336,6 +1344,7 @@ Wolf() {
 Firewallx
 wget -q https://raw.githubusercontent.com/AtizaD/WOLF-VPS-MANAGER/main/hehe -q; chmod 777 hehe; ./hehe
 wget -q -O /bin/conexao https://raw.githubusercontent.com/negrroo/Vps/main/Scripts/WOLF-VPS-MANAGER/Modulos/V2ray/vconexao && chmod +x /bin/conexao
+CronTablet
 Finalizing
 }
 #
