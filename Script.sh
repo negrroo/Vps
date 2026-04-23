@@ -1286,10 +1286,6 @@ add_job "0 0 1 * *" /usr/local/bin/ssh-usage-reset-month.sh
 add_job "0 0 * * *" /usr/local/bin/ssh-usage-telegram.sh
 add_job "0 0 * * *" /usr/local/bin/sync_users_db.sh
 
-# VMESS jobs
-add_job "0 * * * *" /usr/local/sbin/check-vmess-exp
-add_job "*/2 * * * *" /usr/local/sbin/check-vmess-ip
-
 crontab "$CRON_TMP"
 rm -f "$CRON_TMP"
 }

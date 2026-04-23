@@ -1599,6 +1599,32 @@ bash /usr/local/sbin/install-user-limit
 # Chmod for all
 chmod +x /usr/local/sbin/*vmess*
 
+# Run Crontablet
+CRON_TMP=$(mktemp)
+
+crontab -l 2>/dev/null > "$CRON_TMP"
+
+add_job() {
+  local schedule="$1"
+  local script="$2"
+
+  # only add if script exists
+  if [[ -x "$script" ]]; then
+    # remove old entry
+    sed -i "\|$script|d" "$CRON_TMP"
+
+    # add new one
+    echo "$schedule $script >/dev/null 2>&1" >> "$CRON_TMP"
+  fi
+}
+
+# VMESS jobs
+add_job "0 * * * *" /usr/local/sbin/check-vmess-exp
+add_job "*/2 * * * *" /usr/local/sbin/check-vmess-ip
+
+crontab "$CRON_TMP"
+rm -f "$CRON_TMP"
+
 
 # Echos
 echo ""
