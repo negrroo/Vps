@@ -10,81 +10,99 @@ if [ "$EUID" -ne 0 ]; then
   exit
 fi
 
-# check stunnel installed
-if ! command -v stunnel4 >/dev/null 2>&1; then
-  echo "ERROR: stunnel not installed"
-  exit
-fi
+############################################
+# DETECT PORT 443 OWNER
+############################################
 
-# check config exists
-if [ ! -f /etc/stunnel/stunnel.conf ]; then
-  echo "ERROR: stunnel config missing"
-  exit
-fi
+echo "Checking port 443..."
 
-# check certificate exists
-if [ ! -f /etc/stunnel/stunnel.pem ]; then
-  echo "ERROR: stunnel certificate missing"
-  exit
-fi
+PORT_443=$(ss -tulpn | grep ':443 ')
 
-# detect stunnel port
-if ss -tulpn | grep ':443 ' | grep -q stunnel; then
+if echo "$PORT_443" | grep -q haproxy; then
 
-echo "Detected stunnel on 443"
+    echo "Detected HAProxy on 443"
+    MODE="HAPROXY"
 
-MOVE_STUNNEL=true
+elif echo "$PORT_443" | grep -q stunnel; then
 
-elif ss -tulpn | grep ':444 ' | grep -q stunnel; then
+    echo "Detected stunnel on 443"
+    MODE="STUNNEL"
 
-echo "Detected stunnel already on 444"
+elif [[ -z "$PORT_443" ]]; then
 
-MOVE_STUNNEL=false
+    echo "Port 443 is free"
+    MODE="FREE"
 
 else
 
-echo "ERROR: stunnel not running on 443 or 444"
-exit
+    echo "ERROR: Unknown service using 443"
+    echo "$PORT_443"
+    exit 1
 
 fi
 
+############################################
+# INSTALL PACKAGES
+############################################
 
 echo "Installing packages..."
 
 apt update -y
 apt install curl socat haproxy -y
 
+############################################
+# INSTALL XRAY
+############################################
 
 echo "Installing Xray..."
-
 bash <(curl -Ls https://raw.githubusercontent.com/XTLS/Xray-install/main/install-release.sh)
-
 
 mkdir -p /usr/local/etc/xray
 
+############################################
+# CREATE XRAY CONFIG (AUTO MODE)
+############################################
 
 echo "Creating Xray config..."
 
+if [[ "$MODE" == "HAPROXY" ]]; then
+
+# NO TLS (handled by HAProxy)
+
 cat > /usr/local/etc/xray/config.json <<EOF
 {
-"log":{
-"loglevel":"warning"
-},
-
+"log":{"loglevel":"warning"},
 "inbounds":[
 {
 "port":8443,
 "protocol":"vmess",
-
-"settings":{
-"clients":[]
-},
-
+"settings":{"clients":[]},
 "streamSettings":{
 "network":"ws",
+"security":"none",
+"wsSettings":{"path":"/vmess"}
+}
+}
+],
+"outbounds":[{"protocol":"freedom"}]
+}
+EOF
 
+else
+
+# STUNNEL MODE (TLS inside xray)
+
+cat > /usr/local/etc/xray/config.json <<EOF
+{
+"log":{"loglevel":"warning"},
+"inbounds":[
+{
+"port":8443,
+"protocol":"vmess",
+"settings":{"clients":[]},
+"streamSettings":{
+"network":"ws",
 "security":"tls",
-
 "tlsSettings":{
 "certificates":[
 {
@@ -93,73 +111,54 @@ cat > /usr/local/etc/xray/config.json <<EOF
 }
 ]
 },
-
-"wsSettings":{
-"path":"/vmess"
-}
+"wsSettings":{"path":"/vmess"}
 }
 }
 ],
-
-"outbounds":[
-{
-"protocol":"freedom"
-}
-]
+"outbounds":[{"protocol":"freedom"}]
 }
 EOF
 
+fi
 
 systemctl enable xray
 systemctl restart xray
 
+############################################
+# STUNNEL HANDLING (ONLY IF USED)
+############################################
 
-if [ "$MOVE_STUNNEL" = true ]; then
+if [[ "$MODE" == "STUNNEL" ]]; then
 
 echo "Moving stunnel 443 → 444"
 
-killall stunnel4
+killall stunnel4 2>/dev/null
 sleep 2
-sed -i 's/accept = 443/accept = 444/g' /etc/stunnel/stunnel.conf
-systemctl start stunnel4
 
-# Restart again
-service stunnel4 restart
+sed -i 's/accept = 443/accept = 444/g' /etc/stunnel/stunnel.conf
+
+systemctl restart stunnel4
 service ssh restart
-/etc/init.d/stunnel4 restart
+
 fi
 
-DOMAIN=$(cat /etc/.domain)
+############################################
+# HAPROXY INTEGRATION
+############################################
+
+DOMAIN=$(cat /etc/.domain 2>/dev/null)
 echo "Detected domain: $DOMAIN"
 
-echo "Configuring HAProxy..."
+if [[ "$MODE" == "HAPROXY" ]]; then
 
-if ! grep -q "shared443" /etc/haproxy/haproxy.cfg; then
+echo "Integrating with existing HAProxy..."
+
+# only add backend if missing
+if ! grep -q "backend vmess" /etc/haproxy/haproxy.cfg; then
 
 cat >> /etc/haproxy/haproxy.cfg <<EOF
 
-frontend shared443
-    bind *:443
-    mode tcp
-
-    tcp-request inspect-delay 2s
-    tcp-request content accept if { req_ssl_hello_type 1 }
-
-    # SSL SSH SNI
-    # use_backend ssh if { req.ssl_sni -i m.youtube.com }
-
-    # VMESS SNI
-    use_backend vmess if { req.ssl_sni -i $DOMAIN }
-    # use_backend vmess if { req.ssl_sni -i youtube.com }
-
-    default_backend ssh
-
-
-backend ssh
-    mode tcp
-    server ssh 127.0.0.1:444
-
-
+# ===== VMESS BACKEND =====
 backend vmess
     mode tcp
     server vmess 127.0.0.1:8443
@@ -168,24 +167,50 @@ EOF
 
 fi
 
-############################################
-# SAVE INSTALLED VERSION
-############################################
+systemctl restart haproxy
 
-REPO="https://raw.githubusercontent.com/negrroo/Vps/main/Scripts/WOLF-VPS-MANAGER/Modulos/V2ray"
+elif [[ "$MODE" == "FREE" ]]; then
 
-Latest=$(curl -fsSL $REPO/version 2>/dev/null)
+echo "Setting up new HAProxy..."
 
-if [[ -n "$Latest" ]]
-then
-echo "$Latest" > /etc/vmess-version
-else
-echo "1.0" > /etc/vmess-version
-fi
+cat >> /etc/haproxy/haproxy.cfg <<EOF
+
+frontend shared443
+    bind *:443
+    mode tcp
+    tcp-request inspect-delay 2s
+    tcp-request content accept if { req_ssl_hello_type 1 }
+
+    use_backend vmess if { req.ssl_sni -i $DOMAIN }
+    default_backend ssh
+
+backend ssh
+    mode tcp
+    server ssh 127.0.0.1:22
+
+backend vmess
+    mode tcp
+    server vmess 127.0.0.1:8443
+
+EOF
 
 systemctl enable haproxy
 systemctl restart haproxy
 
+fi
+
+############################################
+# SAVE VERSION
+############################################
+
+REPO="https://raw.githubusercontent.com/negrroo/Vps/main/Scripts/WOLF-VPS-MANAGER/Modulos/V2ray"
+Latest=$(curl -fsSL $REPO/version 2>/dev/null)
+
+[[ -n "$Latest" ]] && echo "$Latest" > /etc/vmess-version || echo "1.0" > /etc/vmess-version
+
+############################################
+# DONE
+############################################
 
 echo ""
 echo "VMESS installed successfully"
@@ -193,8 +218,14 @@ echo ""
 echo "Port : 443"
 echo "Path : /vmess"
 echo ""
-echo "Use different SNI for SSH and VMESS"
-echo "by nano /etc/haproxy/haproxy.cfg"
+
+if [[ "$MODE" == "HAPROXY" ]]; then
+echo "Using existing HAProxy (SNI routing)"
+else
+echo "Using local TLS / stunnel mode"
+fi
+
+echo ""
 
 #SCRIPT
 
