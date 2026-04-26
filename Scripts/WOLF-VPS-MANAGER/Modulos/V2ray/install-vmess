@@ -4,103 +4,55 @@
 
 echo "Checking environment..."
 
-# must run as root
-if [ "$EUID" -ne 0 ]; then
-  echo "Run as root"
-  exit
+# root check
+[ "$EUID" -ne 0 ] && echo "Run as root" && exit
+
+############################################
+# DETECT MODE (STUNNEL / HAPROXY)
+############################################
+
+MODE="unknown"
+
+if ss -tulpn | grep -q ':443 ' | grep -q haproxy; then
+    MODE="haproxy"
+elif ss -tulpn | grep -q ':443 ' | grep -q stunnel; then
+    MODE="stunnel"
 fi
 
-############################################
-# DETECT PORT 443 OWNER
-############################################
-
-echo "Checking port 443..."
-
-PORT_443=$(ss -tulpn | grep ':443 ')
-
-if echo "$PORT_443" | grep -q haproxy; then
-    echo "Detected HAProxy on 443"
-    MODE="HAPROXY"
-
-elif echo "$PORT_443" | grep -q stunnel; then
-    echo "Detected stunnel on 443"
-    MODE="STUNNEL"
-
-elif [[ -z "$PORT_443" ]]; then
-    echo "Port 443 is free"
-    MODE="FREE"
-
-else
-    echo "ERROR: Unknown service using 443"
-    echo "$PORT_443"
-    exit 1
-fi
+echo "Detected mode: $MODE"
 
 ############################################
-# FIND FREE BACKEND PORT
-############################################
-
-echo "Checking backend port..."
-
-get_free_port() {
-    for p in 8443 10000 10001 10002 10003; do
-        if ! ss -tulpn | grep -q ":$p "; then
-            echo $p
-            return
-        fi
-    done
-}
-
-XRAY_PORT=$(get_free_port)
-
-echo "Using backend port: $XRAY_PORT"
-
-############################################
-# INSTALL PACKAGES
+# INSTALL BASE PACKAGES
 ############################################
 
 apt update -y
-apt install curl socat haproxy -y
+apt install -y curl socat nginx
 
 ############################################
 # INSTALL XRAY
 ############################################
 
-echo "Installing Xray..."
 bash <(curl -Ls https://raw.githubusercontent.com/XTLS/Xray-install/main/install-release.sh)
 
 mkdir -p /usr/local/etc/xray
 
 ############################################
-# XRAY CONFIG (AUTO MODE)
+# PORT AUTO FIX (8443 conflict)
 ############################################
 
-echo "Creating Xray config..."
+XRAY_PORT=8443
 
-if [[ "$MODE" == "HAPROXY" ]]; then
+if ss -tulpn | grep -q ":8443 "; then
+    XRAY_PORT=10001
+fi
 
-cat > /usr/local/etc/xray/config.json <<EOF
-{
-"log":{"loglevel":"warning"},
-"inbounds":[
-{
-"port":$XRAY_PORT,
-"protocol":"vmess",
-"settings":{"clients":[]},
-"streamSettings":{
-"network":"ws",
-"security":"none",
-"wsSettings":{"path":"/vmess"}
-}
-}
-],
-"outbounds":[{"protocol":"freedom"}]
-}
-EOF
+############################################
+# CREATE XRAY CONFIG BASED ON MODE
+############################################
 
-else
+if [[ "$MODE" == "stunnel" ]]; then
 
-cat > /usr/local/etc/xray/config.json <<EOF
+cat > /usr/local/etc/xray/config.json <<EOF2
 {
 "log":{"loglevel":"warning"},
 "inbounds":[
@@ -125,85 +77,79 @@ cat > /usr/local/etc/xray/config.json <<EOF
 ],
 "outbounds":[{"protocol":"freedom"}]
 }
-EOF
+EOF2
+
+else
+
+# HAPROXY MODE → NO TLS
+
+cat > /usr/local/etc/xray/config.json <<EOF2
+{
+"log":{"loglevel":"warning"},
+"inbounds":[
+{
+"port":$XRAY_PORT,
+"protocol":"vmess",
+"settings":{"clients":[]},
+"streamSettings":{
+"network":"ws",
+"security":"none",
+"wsSettings":{"path":"/vmess"}
+}
+}
+],
+"outbounds":[{"protocol":"freedom"}]
+}
+EOF2
 
 fi
+
+############################################
+# ENABLE XRAY
+############################################
 
 systemctl enable xray
 systemctl restart xray
 
 ############################################
-# HAPROXY INTEGRATION (SAFE)
+# HAPROXY MODE → CONFIGURE NGINX
 ############################################
 
-DOMAIN=$(cat /etc/.domain 2>/dev/null)
+if [[ "$MODE" == "haproxy" ]]; then
 
-if [[ -z "$DOMAIN" ]]; then
-    DOMAIN="your_domain_here"
+echo "Configuring nginx for VMESS..."
+
+# find nginx TLS config
+NGINX_CONF="/etc/nginx/sites-enabled/default"
+
+if [ ! -f "$NGINX_CONF" ]; then
+    NGINX_CONF="/etc/nginx/nginx.conf"
 fi
 
-echo "Domain: $DOMAIN"
+# inject only if not exists
+if ! grep -q "/vmess" "$NGINX_CONF"; then
 
-if [[ "$MODE" == "HAPROXY" ]]; then
-
-echo "Integrating with existing HAProxy..."
-
-# remove old vmess backend only (safe)
-sed -i '/backend vmess/,/server vmess/d' /etc/haproxy/haproxy.cfg
-
-# add backend only
-cat >> /etc/haproxy/haproxy.cfg <<EOF
-
-# ===== VMESS BACKEND =====
-backend vmess
-    mode tcp
-    server vmess 127.0.0.1:$XRAY_PORT
-
-EOF
-
-systemctl restart haproxy
-
-elif [[ "$MODE" == "FREE" ]]; then
-
-echo "Creating new HAProxy config..."
-
-cat >> /etc/haproxy/haproxy.cfg <<EOF
-
-frontend shared443
-    bind *:443
-    mode tcp
-    tcp-request inspect-delay 2s
-    tcp-request content accept if { req_ssl_hello_type 1 }
-
-    use_backend vmess if { req.ssl_sni -i $DOMAIN }
-    default_backend ssh
-
-backend ssh
-    mode tcp
-    server ssh 127.0.0.1:22
-
-backend vmess
-    mode tcp
-    server vmess 127.0.0.1:$XRAY_PORT
-
-EOF
-
-systemctl enable haproxy
-systemctl restart haproxy
+sed -i "/server {/a \\
+    location /vmess {\\
+        proxy_pass http://127.0.0.1:$XRAY_PORT;\\
+        proxy_http_version 1.1;\\
+        proxy_set_header Upgrade \$http_upgrade;\\
+        proxy_set_header Connection \"upgrade\";\\
+        proxy_set_header Host \$host;\\
+    }" "$NGINX_CONF"
 
 fi
 
-############################################
-# SAVE PORT (IMPORTANT)
-############################################
+systemctl restart nginx
 
-echo "$XRAY_PORT" > /etc/vmess-port
+fi
 
 ############################################
 # SAVE VERSION
 ############################################
 
 REPO="https://raw.githubusercontent.com/negrroo/Vps/main/Scripts/WOLF-VPS-MANAGER/Modulos/V2ray"
+
 Latest=$(curl -fsSL $REPO/version 2>/dev/null)
 
 [[ -n "$Latest" ]] && echo "$Latest" > /etc/vmess-version || echo "1.0" > /etc/vmess-version
@@ -213,14 +159,20 @@ Latest=$(curl -fsSL $REPO/version 2>/dev/null)
 ############################################
 
 echo ""
-echo "VMESS installed successfully"
+echo "======================================="
+echo " VMESS INSTALLED SUCCESSFULLY"
+echo "======================================="
 echo ""
-echo "Port  : 443 (via HAProxy)"
+echo "Port  : 443"
 echo "Path  : /vmess"
-echo "Backend Port : $XRAY_PORT"
+echo "Mode  : $MODE"
+echo ""
+echo "IMPORTANT:"
+echo "Client must use:"
+echo "TLS  : ON"
+echo "Path : /vmess"
 echo ""
 
-echo "Done."
 
 #SCRIPT
 
