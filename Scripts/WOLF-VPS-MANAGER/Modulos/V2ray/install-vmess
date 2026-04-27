@@ -4,60 +4,79 @@
 
 echo "Checking environment..."
 
-# root check
+# must run as root
 [ "$EUID" -ne 0 ] && echo "Run as root" && exit
 
 ############################################
-# DETECT MODE (STUNNEL / HAPROXY)
+# DETECT PORT 443 OWNER
 ############################################
 
-MODE="unknown"
+PORT443=$(ss -tulpn | grep ':443 ')
 
-if ss -tulpn | grep -q ':443 ' | grep -q haproxy; then
-    MODE="haproxy"
-elif ss -tulpn | grep -q ':443 ' | grep -q stunnel; then
-    MODE="stunnel"
+if echo "$PORT443" | grep -q stunnel; then
+    MODE="STUNNEL"
+
+elif echo "$PORT443" | grep -q nginx; then
+    MODE="NGINX"
+
+elif [[ -z "$PORT443" ]]; then
+    MODE="FREE"
+
+else
+    echo "ERROR: Unsupported service on port 443"
+    echo "$PORT443"
+    exit
 fi
 
-echo "Detected mode: $MODE"
+echo "Detected MODE: $MODE"
 
 ############################################
-# INSTALL BASE PACKAGES
+# ===============================
+# ORIGINAL SCRIPT (STUNNEL MODE)
+# ===============================
 ############################################
 
+if [[ "$MODE" == "STUNNEL" ]]; then
+
+# check stunnel installed
+if ! command -v stunnel4 >/dev/null 2>&1; then
+  echo "ERROR: stunnel not installed"
+  exit
+fi
+
+# check config exists
+[ ! -f /etc/stunnel/stunnel.conf ] && echo "ERROR: stunnel config missing" && exit
+[ ! -f /etc/stunnel/stunnel.pem ] && echo "ERROR: stunnel certificate missing" && exit
+
+# detect stunnel port
+if ss -tulpn | grep ':443 ' | grep -q stunnel; then
+    echo "Detected stunnel on 443"
+    MOVE_STUNNEL=true
+elif ss -tulpn | grep ':444 ' | grep -q stunnel; then
+    echo "Detected stunnel already on 444"
+    MOVE_STUNNEL=false
+else
+    echo "ERROR: stunnel not running on 443 or 444"
+    exit
+fi
+
+echo "Installing packages..."
 apt update -y
-apt install -y curl socat nginx
+apt install curl socat haproxy -y
 
-############################################
-# INSTALL XRAY
-############################################
-
+echo "Installing Xray..."
 bash <(curl -Ls https://raw.githubusercontent.com/XTLS/Xray-install/main/install-release.sh)
 
 mkdir -p /usr/local/etc/xray
 
-############################################
-# PORT AUTO FIX (8443 conflict)
-############################################
-
-XRAY_PORT=8443
-
-if ss -tulpn | grep -q ":8443 "; then
-    XRAY_PORT=10001
-fi
-
-############################################
-# CREATE XRAY CONFIG BASED ON MODE
-############################################
-
-if [[ "$MODE" == "stunnel" ]]; then
+echo "Creating Xray config..."
 
 cat > /usr/local/etc/xray/config.json <<EOF2
 {
 "log":{"loglevel":"warning"},
 "inbounds":[
 {
-"port":$XRAY_PORT,
+"port":8443,
 "protocol":"vmess",
 "settings":{"clients":[]},
 "streamSettings":{
@@ -79,9 +98,67 @@ cat > /usr/local/etc/xray/config.json <<EOF2
 }
 EOF2
 
-else
+systemctl enable xray
+systemctl restart xray
 
-# HAPROXY MODE → NO TLS
+if [ "$MOVE_STUNNEL" = true ]; then
+echo "Moving stunnel 443 → 444"
+killall stunnel4
+sleep 2
+sed -i 's/accept = 443/accept = 444/g' /etc/stunnel/stunnel.conf
+systemctl restart stunnel4
+service ssh restart
+fi
+
+DOMAIN=$(cat /etc/.domain)
+echo "Detected domain: $DOMAIN"
+
+echo "Configuring HAProxy..."
+
+if ! grep -q "shared443" /etc/haproxy/haproxy.cfg; then
+
+cat >> /etc/haproxy/haproxy.cfg <<EOF2
+
+frontend shared443
+    bind *:443
+    mode tcp
+
+    tcp-request inspect-delay 2s
+    tcp-request content accept if { req_ssl_hello_type 1 }
+
+    use_backend vmess if { req.ssl_sni -i $DOMAIN }
+    default_backend ssh
+
+backend ssh
+    server ssh 127.0.0.1:444
+
+backend vmess
+    server vmess 127.0.0.1:8443
+
+EOF2
+fi
+
+systemctl enable haproxy
+systemctl restart haproxy
+
+############################################
+# ===============================
+# NGINX MODE (NEW - SAFE)
+# ===============================
+############################################
+
+elif [[ "$MODE" == "NGINX" ]]; then
+
+echo "Using NGINX MODE (no stunnel / no haproxy changes)"
+
+apt update -y
+apt install -y curl nginx
+
+bash <(curl -Ls https://raw.githubusercontent.com/XTLS/Xray-install/main/install-release.sh)
+
+mkdir -p /usr/local/etc/xray
+
+XRAY_PORT=10001
 
 cat > /usr/local/etc/xray/config.json <<EOF2
 {
@@ -102,33 +179,13 @@ cat > /usr/local/etc/xray/config.json <<EOF2
 }
 EOF2
 
-fi
-
-############################################
-# ENABLE XRAY
-############################################
-
-systemctl enable xray
 systemctl restart xray
 
-############################################
-# HAPROXY MODE → CONFIGURE NGINX
-############################################
-
-if [[ "$MODE" == "haproxy" ]]; then
-
-echo "Configuring nginx for VMESS..."
-
-# find nginx TLS config
+# inject nginx location safely
 NGINX_CONF="/etc/nginx/sites-enabled/default"
+[ ! -f "$NGINX_CONF" ] && NGINX_CONF="/etc/nginx/nginx.conf"
 
-if [ ! -f "$NGINX_CONF" ]; then
-    NGINX_CONF="/etc/nginx/nginx.conf"
-fi
-
-# inject only if not exists
 if ! grep -q "/vmess" "$NGINX_CONF"; then
-
 sed -i "/server {/a \\
     location /vmess {\\
         proxy_pass http://127.0.0.1:$XRAY_PORT;\\
@@ -137,19 +194,55 @@ sed -i "/server {/a \\
         proxy_set_header Connection \"upgrade\";\\
         proxy_set_header Host \$host;\\
     }" "$NGINX_CONF"
-
 fi
 
 systemctl restart nginx
 
+############################################
+# ===============================
+# FREE MODE (PORT 443 FREE)
+# ===============================
+############################################
+
+elif [[ "$MODE" == "FREE" ]]; then
+
+echo "Using FREE MODE (direct 443)"
+
+apt update -y
+apt install -y curl
+
+bash <(curl -Ls https://raw.githubusercontent.com/XTLS/Xray-install/main/install-release.sh)
+
+mkdir -p /usr/local/etc/xray
+
+cat > /usr/local/etc/xray/config.json <<EOF2
+{
+"log":{"loglevel":"warning"},
+"inbounds":[
+{
+"port":443,
+"protocol":"vmess",
+"settings":{"clients":[]},
+"streamSettings":{
+"network":"ws",
+"security":"none",
+"wsSettings":{"path":"/vmess"}
+}
+}
+],
+"outbounds":[{"protocol":"freedom"}]
+}
+EOF2
+
+systemctl restart xray
+
 fi
 
 ############################################
-# SAVE VERSION
+# VERSION SAVE (UNCHANGED)
 ############################################
 
 REPO="https://raw.githubusercontent.com/negrroo/Vps/main/Scripts/WOLF-VPS-MANAGER/Modulos/V2ray"
-
 Latest=$(curl -fsSL $REPO/version 2>/dev/null)
 
 [[ -n "$Latest" ]] && echo "$Latest" > /etc/vmess-version || echo "1.0" > /etc/vmess-version
@@ -159,20 +252,11 @@ Latest=$(curl -fsSL $REPO/version 2>/dev/null)
 ############################################
 
 echo ""
-echo "======================================="
-echo " VMESS INSTALLED SUCCESSFULLY"
-echo "======================================="
+echo "VMESS installed successfully"
+echo "Mode: $MODE"
+echo "Port: 443"
+echo "Path: /vmess"
 echo ""
-echo "Port  : 443"
-echo "Path  : /vmess"
-echo "Mode  : $MODE"
-echo ""
-echo "IMPORTANT:"
-echo "Client must use:"
-echo "TLS  : ON"
-echo "Path : /vmess"
-echo ""
-
 
 #SCRIPT
 
