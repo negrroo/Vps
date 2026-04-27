@@ -14,7 +14,14 @@ mkdir -p /etc
 cat > /usr/local/sbin/add-vmess <<'EOF'
 #!/bin/bash
 
-IP=$(cat /etc/IP)
+IP=$(curl -s ipv4.icanhazip.com 2>/dev/null)
+
+[[ -z "$IP" ]] && IP=$(curl -s ifconfig.me 2>/dev/null)
+
+[[ -z "$IP" ]] && IP=$(hostname -I | awk '{print $1}')
+
+[[ -z "$IP" ]] && IP="0.0.0.0"
+
 cor1='\033[41;1;37m'
 cor2='\033[44;1;37m'
 scor='\033[0m'
@@ -1015,7 +1022,13 @@ EOF
 cat > /usr/local/sbin/add-trial-vmess <<'EOF'
 #!/bin/bash
 
-IP=$(cat /etc/IP)
+IP=$(curl -s ipv4.icanhazip.com 2>/dev/null)
+
+[[ -z "$IP" ]] && IP=$(curl -s ifconfig.me 2>/dev/null)
+
+[[ -z "$IP" ]] && IP=$(hostname -I | awk '{print $1}')
+
+[[ -z "$IP" ]] && IP="0.0.0.0"
 
 cor1='\033[41;1;37m'
 cor2='\033[44;1;37m'
