@@ -1,0 +1,55 @@
+#!/bin/bash
+
+############################################
+# INSTALL Domain if no
+############################################
+if [[ ! -f /etc/.domain ]]; then
+echo -ne "\033[1;36m◇ Do you want to add a domain name? [Y/N]: \033[0m"
+read add_domain
+echo ""
+
+echo -e "\033[1;32m>>> Make sure your domain is pointed to this VPS IP <<<\033[0m"
+
+SERVER_IP=$(curl -s ipv4.icanhazip.com)
+
+domain_name=""
+
+if [[ "$add_domain" == [Yy]* ]]; then
+    attempts=0
+
+    while [[ $attempts -lt 3 ]]; do
+        echo -ne "\033[1;36m◇ Enter domain (example.com): \033[0m"
+        read domain_input
+        echo ""
+
+        if [[ $domain_input =~ ^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$ ]]; then
+
+            DOMAIN_IP=$(getent hosts "$domain_input" | awk '{print $1}' | head -n1)
+
+            if [[ "$DOMAIN_IP" == "$SERVER_IP" ]]; then
+
+                domain_name="$domain_input"
+                echo "$domain_name" > /etc/.domain
+
+                echo -e "\033[1;32mDomain verified and saved: $domain_name\033[0m"
+                break
+
+            else
+                echo -e "\033[1;31mDomain is NOT pointing to this server!\033[0m"
+                echo -e "Expected: $SERVER_IP"
+                echo -e "Got     : $DOMAIN_IP"
+            fi
+
+        else
+            echo -e "\033[1;31mInvalid domain format\033[0m"
+        fi
+
+        ((attempts++))
+    done
+
+    [[ -z "$domain_name" ]] && echo "Skipping domain setup."
+
+else
+    echo "No domain added."
+fi
+fi
