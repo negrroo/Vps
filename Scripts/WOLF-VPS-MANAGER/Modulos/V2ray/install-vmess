@@ -14,7 +14,6 @@ fi
 # INSTALL Domain if no
 ############################################
 if [[ ! -f /etc/.domain ]]; then
-clear
 echo -ne "\033[1;36m◇ Do you want to add a domain name? [Y/N]: \033[0m"
 read add_domain
 echo ""
