@@ -1352,19 +1352,16 @@ install_v2ray() {
                 wget -q -O /usr/local/sbin/install-vmess https://raw.githubusercontent.com/negrroo/Vps/main/Scripts/WOLF-VPS-MANAGER/Modulos/V2ray/install-vmess && chmod +x /usr/local/sbin/install-vmess
                 wget -q -O /usr/local/sbin/vmess-modules https://raw.githubusercontent.com/negrroo/Vps/main/Scripts/WOLF-VPS-MANAGER/Modulos/V2ray/vmess-modules && chmod +x /usr/local/sbin/vmess-modules
                 wget -q -O /usr/local/sbin/update-vmess https://raw.githubusercontent.com/negrroo/Vps/main/Scripts/WOLF-VPS-MANAGER/Modulos/V2ray/update-vmess && chmod +x /usr/local/sbin/update-vmess
-#                wget -q -O /bin/conexao https://raw.githubusercontent.com/negrroo/Vps/main/Scripts/WOLF-VPS-MANAGER/Modulos/V2ray/vconexao && chmod +x /bin/conexao
+                wget -q -O /usr/local/sbin/domaincek https://raw.githubusercontent.com/negrroo/Vps/main/Scripts/MineV2ray/domaincek && chmod +x /usr/local/sbin/domaincek
                 echo ""
                 echo -e "\033[1;32mINSTALLING V2RAY CORE...\033[0m"
                 echo ""
+                bash /usr/local/sbin/domaincek
                 fun_bar 'bash /usr/local/sbin/install-vmess'
                 echo ""
                 echo -e "\033[1;32mINSTALLING USER MODULES...\033[0m"
                 echo ""
                 fun_bar 'bash /usr/local/sbin/vmess-modules'
-                echo ""
-                echo -e "\033[1;32mINTEGRATING MENU...\033[0m"
-                echo ""
-#               wget -q -O /bin/menu https://raw.githubusercontent.com/negrroo/Vps/main/Scripts/WOLF-VPS-MANAGER/Modulos/V2ray/vmenu && chmod +x /bin/menu
                 echo ""
                 echo -e "\033[1;32mV2RAY INSTALLED SUCCESSFULLY!\033[0m"
                 echo ""
@@ -1406,6 +1403,7 @@ uninstall_v2ray() {
 				/usr/local/sbin/vmess
 				/usr/local/sbin/vmess-modules
 				/usr/local/sbin/install-vmess
+				/usr/local/sbin/domaincek
 				)
 				for f in "${files[@]}"
 				do
@@ -1585,6 +1583,8 @@ done
 
 menuv
 EOF
+
+chmod +x /usr/local/bin/menuv
 }
 
 ################
