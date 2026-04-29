@@ -10,6 +10,92 @@ if [ "$EUID" -ne 0 ]; then
   exit
 fi
 
+############################################
+# INSTALL Domain if no
+############################################
+if [[ ! -f /etc/.domain ]]; then
+clear
+echo -ne "\033[1;36m◇ Do you want to add a domain name? [Y/N]: \033[0m"
+read add_domain
+echo ""
+
+echo -e "\033[1;32m>>> Make sure your domain is pointed to this VPS IP <<<\033[0m"
+
+SERVER_IP=$(curl -s ipv4.icanhazip.com)
+
+domain_name=""
+
+if [[ "$add_domain" == [Yy]* ]]; then
+    attempts=0
+
+    while [[ $attempts -lt 3 ]]; do
+        echo -ne "\033[1;36m◇ Enter domain (example.com): \033[0m"
+        read domain_input
+        echo ""
+
+        if [[ $domain_input =~ ^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$ ]]; then
+
+            DOMAIN_IP=$(getent hosts "$domain_input" | awk '{print $1}' | head -n1)
+
+            if [[ "$DOMAIN_IP" == "$SERVER_IP" ]]; then
+
+                domain_name="$domain_input"
+                echo "$domain_name" > /etc/.domain
+
+                echo -e "\033[1;32mDomain verified and saved: $domain_name\033[0m"
+                break
+
+            else
+                echo -e "\033[1;31mDomain is NOT pointing to this server!\033[0m"
+                echo -e "Expected: $SERVER_IP"
+                echo -e "Got     : $DOMAIN_IP"
+            fi
+
+        else
+            echo -e "\033[1;31mInvalid domain format\033[0m"
+        fi
+
+        ((attempts++))
+    done
+
+    [[ -z "$domain_name" ]] && echo "Skipping domain setup."
+
+else
+    echo "No domain added."
+fi
+fi
+
+############################################
+# DETECT MODE
+############################################
+
+PORT443=$(ss -tulpn | grep ':443 ')
+PORT8443=$(ss -tulpn | grep ':8443 ')
+
+if echo "$PORT443" | grep -q stunnel; then
+    MODE="STUNNEL"
+
+elif echo "$PORT443" | grep -q haproxy && echo "$PORT8443" | grep -q nginx; then
+    MODE="FALCON"
+
+else
+    echo "ERROR: Unsupported environment"
+    echo "$PORT443"
+    exit
+fi
+
+echo "Detected MODE: $MODE"
+
+############################################
+# ===============================
+# CASE 1 → YOUR ORIGINAL SCRIPT
+# ===============================
+############################################
+
+if [[ "$MODE" == "STUNNEL" ]]; then
+
+# ======= YOUR SCRIPT (UNCHANGED) =======
+
 # check stunnel installed
 if ! command -v stunnel4 >/dev/null 2>&1; then
   echo "ERROR: stunnel not installed"
@@ -168,6 +254,96 @@ EOF
 
 fi
 
+systemctl enable haproxy
+systemctl restart haproxy
+
+############################################
+# ===============================
+# CASE 2 → FALCON MODE (NGINX)
+# ===============================
+############################################
+
+elif [[ "$MODE" == "FALCON" ]]; then
+
+echo "Using FALCON MODE (nginx routing)"
+
+apt update -y
+apt install -y curl
+
+bash <(curl -Ls https://raw.githubusercontent.com/XTLS/Xray-install/main/install-release.sh)
+
+mkdir -p /usr/local/etc/xray
+
+XRAY_PORT=10001
+
+############################################
+# XRAY CONFIG (NO TLS)
+############################################
+echo "Creating Xray config..."
+
+cat > /usr/local/etc/xray/config.json <<EOF
+{
+"log":{
+"loglevel":"warning"
+},
+
+"inbounds":[
+{
+"port":$XRAY_PORT,
+"protocol":"vmess",
+
+"settings":{
+"clients":[]
+},
+
+"streamSettings":{
+"network":"ws",
+
+"security":"none",
+
+"wsSettings":{
+"path":"/vmess"
+}
+}
+}
+],
+
+"outbounds":[
+{
+"protocol":"freedom"
+}
+]
+}
+EOF
+
+
+systemctl enable xray
+systemctl restart xray
+
+############################################
+# NGINX ROUTING (SAFE INJECT)
+############################################
+
+NGINX_CONF="/etc/nginx/sites-enabled/default"
+[ ! -f "$NGINX_CONF" ] && NGINX_CONF="/etc/nginx/nginx.conf"
+
+if ! grep -q "/vmess" "$NGINX_CONF"; then
+
+sed -i "/server {/a \\
+    location /vmess {\\
+        proxy_pass http://127.0.0.1:$XRAY_PORT;\\
+        proxy_http_version 1.1;\\
+        proxy_set_header Upgrade \$http_upgrade;\\
+        proxy_set_header Connection \"upgrade\";\\
+        proxy_set_header Host \$host;\\
+    }" "$NGINX_CONF"
+
+fi
+
+systemctl restart nginx
+
+fi
+
 ############################################
 # SAVE INSTALLED VERSION
 ############################################
@@ -183,18 +359,14 @@ else
 echo "1.0" > /etc/vmess-version
 fi
 
-systemctl enable haproxy
-systemctl restart haproxy
-
 
 echo ""
 echo "VMESS installed successfully"
 echo ""
+echo "Mode: $MODE"
 echo "Port : 443"
 echo "Path : /vmess"
 echo ""
-echo "Use different SNI for SSH and VMESS"
-echo "by nano /etc/haproxy/haproxy.cfg"
 
 #SCRIPT
 
