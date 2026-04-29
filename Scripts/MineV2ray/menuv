@@ -56,7 +56,7 @@ install_v2ray() {
                 wget -q -O /usr/local/sbin/install-vmess https://raw.githubusercontent.com/negrroo/Vps/main/Scripts/WOLF-VPS-MANAGER/Modulos/V2ray/install-vmess && chmod +x /usr/local/sbin/install-vmess
                 wget -q -O /usr/local/sbin/vmess-modules https://raw.githubusercontent.com/negrroo/Vps/main/Scripts/WOLF-VPS-MANAGER/Modulos/V2ray/vmess-modules && chmod +x /usr/local/sbin/vmess-modules
                 wget -q -O /usr/local/sbin/update-vmess https://raw.githubusercontent.com/negrroo/Vps/main/Scripts/WOLF-VPS-MANAGER/Modulos/V2ray/update-vmess && chmod +x /usr/local/sbin/update-vmess
-                wget -q -O /usr/local/sbin/domaincek https://raw.githubusercontent.com/negrroo/Vps/main/Scripts/WOLF-VPS-MANAGER/Modulos/V2ray/update-vmess && chmod +x /usr/local/sbin/domaincek
+                wget -q -O /usr/local/sbin/domaincek https://raw.githubusercontent.com/negrroo/Vps/main/Scripts/MineV2ray/domaincek && chmod +x /usr/local/sbin/domaincek
                 echo ""
                 echo -e "\033[1;32mINSTALLING V2RAY CORE...\033[0m"
                 echo ""
@@ -150,6 +150,21 @@ _expuser=$(awk '$3=="locked"' $vmess_db 2>/dev/null | wc -l)
 _tuser=$(grep -c "" $vmess_db 2>/dev/null)
 
 ############################################
+# VMESS STATS
+############################################
+
+# Check for Updates
+REPO="https://raw.githubusercontent.com/negrroo/Vps/main/Scripts/WOLF-VPS-MANAGER/Modulos/V2ray"
+LOCAL_VER=$(cat /etc/vmess-version 2>/dev/null)
+REMOTE_VER=$(curl -m 2 -s $REPO/version)
+if [[ -n "$REMOTE_VER" && "$REMOTE_VER" != "$LOCAL_VER" ]]
+then
+xUpdate="\033[1;32m♦ "
+else
+xUpdate="\033[1;31m○ "
+fi
+
+############################################
 
 while true; do
 
@@ -184,7 +199,7 @@ echo -e "\033[1;31m[\033[1;36m01\033[1;31m] \033[1;37m◇ \033[1;33mADD USER \03
 [\033[1;36m02\033[1;31m] \033[1;37m◇ \033[1;33mDELETE USER \033[1;31m        [\033[1;36m09\033[1;31m] \033[1;37m◇ \033[1;33mONLINE USER
 [\033[1;36m03\033[1;31m] \033[1;37m◇ \033[1;33mRENEW USER \033[1;31m         [\033[1;36m10\033[1;31m] \033[1;37m◇ \033[1;33mDOMAINS
 [\033[1;36m04\033[1;31m] \033[1;37m◇ \033[1;33mLOCK USER \033[1;31m          [\033[1;36m11\033[1;31m] \033[1;37m◇ \033[1;33mBANDWIDTH
-[\033[1;36m05\033[1;31m] \033[1;37m◇ \033[1;33mUNLOCK USER \033[1;31m        [\033[1;36m12\033[1;31m] \033[1;37m◇ \033[1;33mUPDATE SCRIPT
+[\033[1;36m05\033[1;31m] \033[1;37m◇ \033[1;33mUNLOCK USER \033[1;31m        [\033[1;36m12\033[1;31m] \033[1;37m◇ \033[1;33mUPDATE SCRIPT $xUpdate \033[1;31m
 [\033[1;36m06\033[1;31m] \033[1;37m◇ \033[1;33mLIST USER \033[1;31m          [\033[1;36m13\033[1;31m] \033[1;37m◇ \033[1;33mUNINSTALL V2RAY
 [\033[1;36m07\033[1;31m] \033[1;37m◇ \033[1;33mADD TEMP USER \033[1;31m      [\033[1;36m00\033[1;31m] \033[1;37m◇ \033[1;33mGET OUT \033[1;32m<\033[1;33m<\033[1;31m<"
 
@@ -194,7 +209,7 @@ echo -e "\033[1;31m[\033[1;36m01\033[1;31m] \033[1;37m◇ \033[1;33mADD USER \03
 [\033[1;36m02\033[1;31m] \033[1;37m◇ \033[1;33mDELETE USER \033[1;31m        [\033[1;36m09\033[1;31m] \033[1;37m◇ \033[1;33mONLINE USER
 [\033[1;36m03\033[1;31m] \033[1;37m◇ \033[1;33mRENEW USER \033[1;31m         [\033[1;36m10\033[1;31m] \033[1;37m◇ \033[1;33mDOMAINS
 [\033[1;36m04\033[1;31m] \033[1;37m◇ \033[1;33mLOCK USER \033[1;31m          [\033[1;36m11\033[1;31m] \033[1;37m◇ \033[1;33mINSTALL V2RAY
-[\033[1;36m05\033[1;31m] \033[1;37m◇ \033[1;33mUNLOCK USER \033[1;31m        [\033[1;36m12\033[1;31m] \033[1;37m◇ \033[1;33mUPDATE SCRIPT
+[\033[1;36m05\033[1;31m] \033[1;37m◇ \033[1;33mUNLOCK USER \033[1;31m        [\033[1;36m12\033[1;31m] \033[1;37m◇ \033[1;33mUPDATE SCRIPT $xUpdate \033[1;31m
 [\033[1;36m06\033[1;31m] \033[1;37m◇ \033[1;33mLIST USER \033[1;31m          [\033[1;36m00\033[1;31m] \033[1;37m◇ \033[1;33mGET OUT \033[1;32m<\033[1;33m<\033[1;31m<
 [\033[1;36m07\033[1;31m] \033[1;37m◇ \033[1;33mADD TEMP USER"
 
