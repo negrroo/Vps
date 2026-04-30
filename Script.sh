@@ -697,13 +697,10 @@ key="0"
 
 fi
 
-status=$(vmess_online_now "$u")
-
-if [[ "$status" -eq 1 ]]
-then
-online_list+=("$key|$row")
+if [[ "$sessions" -gt 0 ]]; then
+   online_list+=("$key|$row")
 else
-offline_list+=("$key|$row")
+   offline_list+=("$key|$row")
 fi
 
 done < "$VMESS_DB"
