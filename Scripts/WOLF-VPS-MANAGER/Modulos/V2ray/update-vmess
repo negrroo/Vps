@@ -139,9 +139,39 @@ done
 # INSTALLATION
 ############################################
 
+PORT443=$(ss -tulpn | grep ':443 ')
+PORT8443=$(ss -tulpn | grep ':8443 ')
+
+if echo "$PORT443" | grep -q stunnel; then
+    MODE="STUNNEL"
+
+elif echo "$PORT443" | grep -q haproxy && echo "$PORT8443" | grep -q nginx; then
+    MODE="FALCON"
+
+else
+    echo "ERROR: Unsupported environment"
+    echo "$PORT443"
+    exit
+fi
+
+echo "Detected MODE: $MODE"
+
+if [[ "$MODE" == "STUNNEL" ]]; then
+
                 wget -q -O /bin/conexao https://raw.githubusercontent.com/negrroo/Vps/main/Scripts/WOLF-VPS-MANAGER/Modulos/V2ray/vconexao && chmod +x /bin/conexao
                 wget -q -O /bin/menu https://raw.githubusercontent.com/negrroo/Vps/main/Scripts/WOLF-VPS-MANAGER/Modulos/V2ray/vmenu && chmod +x /bin/menu
 
+elif [[ "$MODE" == "FALCON" ]]; then
+
+                wget -q -O /usr/local/sbin/domaincek https://raw.githubusercontent.com/negrroo/Vps/main/Scripts/MineV2ray/domaincek && chmod +x /usr/local/sbin/domaincek
+
+                wget -q -O /usr/local/bin/menuv https://raw.githubusercontent.com/negrroo/Vps/main/Scripts/MineV2ray/menuv && chmod +x /usr/local/bin/menuv
+
+else
+    echo "ERROR: Unsupported environment"
+    echo "$PORT443"
+    exit
+fi
                 echo ""
                 echo -e "\033[1;32mUPDATING USER MODULES...\033[0m"
                 echo ""
