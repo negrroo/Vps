@@ -197,7 +197,7 @@ if $installed; then
 
 echo -e "\033[1;31m[\033[1;36m01\033[1;31m] \033[1;37m◇ \033[1;33mADD USER \033[1;31m           [\033[1;36m08\033[1;31m] \033[1;37m◇ \033[1;33mVMESS LINK
 [\033[1;36m02\033[1;31m] \033[1;37m◇ \033[1;33mDELETE USER \033[1;31m        [\033[1;36m09\033[1;31m] \033[1;37m◇ \033[1;33mONLINE USER
-[\033[1;36m03\033[1;31m] \033[1;37m◇ \033[1;33mRENEW USER \033[1;31m         [\033[1;36m10\033[1;31m] \033[1;37m◇ \033[1;33mDOMAINS
+[\033[1;36m03\033[1;31m] \033[1;37m◇ \033[1;33mRENEW USER \033[1;31m         [\033[1;36m10\033[1;31m] \033[1;37m◇ \033[1;33mIPs
 [\033[1;36m04\033[1;31m] \033[1;37m◇ \033[1;33mLOCK USER \033[1;31m          [\033[1;36m11\033[1;31m] \033[1;37m◇ \033[1;33mBANDWIDTH
 [\033[1;36m05\033[1;31m] \033[1;37m◇ \033[1;33mUNLOCK USER \033[1;31m        [\033[1;36m12\033[1;31m] \033[1;37m◇ \033[1;33mUPDATE SCRIPT $xUpdate \033[1;31m
 [\033[1;36m06\033[1;31m] \033[1;37m◇ \033[1;33mLIST USER \033[1;31m          [\033[1;36m13\033[1;31m] \033[1;37m◇ \033[1;33mUNINSTALL V2RAY
@@ -207,7 +207,7 @@ else
 
 echo -e "\033[1;31m[\033[1;36m01\033[1;31m] \033[1;37m◇ \033[1;33mADD USER \033[1;31m           [\033[1;36m08\033[1;31m] \033[1;37m◇ \033[1;33mVMESS LINK
 [\033[1;36m02\033[1;31m] \033[1;37m◇ \033[1;33mDELETE USER \033[1;31m        [\033[1;36m09\033[1;31m] \033[1;37m◇ \033[1;33mONLINE USER
-[\033[1;36m03\033[1;31m] \033[1;37m◇ \033[1;33mRENEW USER \033[1;31m         [\033[1;36m10\033[1;31m] \033[1;37m◇ \033[1;33mDOMAINS
+[\033[1;36m03\033[1;31m] \033[1;37m◇ \033[1;33mRENEW USER \033[1;31m         [\033[1;36m10\033[1;31m] \033[1;37m◇ \033[1;33mIPs
 [\033[1;36m04\033[1;31m] \033[1;37m◇ \033[1;33mLOCK USER \033[1;31m          [\033[1;36m11\033[1;31m] \033[1;37m◇ \033[1;33mINSTALL V2RAY
 [\033[1;36m05\033[1;31m] \033[1;37m◇ \033[1;33mUNLOCK USER \033[1;31m        [\033[1;36m12\033[1;31m] \033[1;37m◇ \033[1;33mUPDATE SCRIPT $xUpdate \033[1;31m
 [\033[1;36m06\033[1;31m] \033[1;37m◇ \033[1;33mLIST USER \033[1;31m          [\033[1;36m00\033[1;31m] \033[1;37m◇ \033[1;33mGET OUT \033[1;32m<\033[1;33m<\033[1;31m<
@@ -222,54 +222,54 @@ echo -ne "\033[1;32m◇ WHAT DO YOU WANT TO DO \033[1;33m?\033[1;31m?\033[1;37m 
 read x
 
 case "$x" in
-01) 
+1 | 01) 
    clear
    add-vmess 
    echo -ne "\n\033[1;31m◇ ENTER \033[1;33mto return to \033[1;32mMENU!\033[0m"; read
    ;;
-02)
+2 | 02)
    clear
    del-vmess 
    echo -ne "\n\033[1;31m◇ ENTER \033[1;33mto return to \033[1;32mMENU!\033[0m"; read
 ;;
-03)
+3 | 03)
    clear
    renew-vmess
    echo -ne "\n\033[1;31m◇ ENTER \033[1;33mto return to \033[1;32mMENU!\033[0m"; read
 ;;
-04)
+4 | 04)
    clear
    lock-vmess
    echo -ne "\n\033[1;31m◇ ENTER \033[1;33mto return to \033[1;32mMENU!\033[0m"; read
 ;;
-05)
+5 | 05)
    clear
    unlock-vmess
    echo -ne "\n\033[1;31m◇ ENTER \033[1;33mto return to \033[1;32mMENU!\033[0m"; read
 ;;
-06)
+6 | 06)
    clear
    list-vmess
    echo -ne "\n\033[1;31m◇ ENTER \033[1;33mto return to \033[1;32mMENU!\033[0m"; read
 ;;
-07)
+7 | 07)
    clear
    add-trial-vmess
    echo -ne "\n\033[1;31m◇ ENTER \033[1;33mto return to \033[1;32mMENU!\033[0m"; read
 ;;
-08)
+8 | 08)
    clear
    config-vmess
    echo -ne "\n\033[1;31m◇ ENTER \033[1;33mto return to \033[1;32mMENU!\033[0m"; read
 ;;
-09)
+9 | 09)
    clear
    cek-vmess
    echo -ne "\n\033[1;31m◇ ENTER \033[1;33mto return to \033[1;32mMENU!\033[0m"; read
 ;;
 10)
    clear
-   vmess-domain
+   ip-vmess
    echo -ne "\n\033[1;31m◇ ENTER \033[1;33mto return to \033[1;32mMENU!\033[0m"; read
 ;;
 11)
