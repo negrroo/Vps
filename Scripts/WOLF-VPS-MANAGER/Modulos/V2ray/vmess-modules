@@ -1550,7 +1550,7 @@ sed -i '1i account required pam_exec.so quiet /usr/local/sbin/ssh-limit-check' $
 EOF
 
 chmod +x /usr/local/sbin/install-user-limit
-bash /usr/local/sbin/install-user-limit
+#bash /usr/local/sbin/install-user-limit
 
 ########################$$$$#########################
 
