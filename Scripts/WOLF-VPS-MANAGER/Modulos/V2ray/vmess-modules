@@ -1272,7 +1272,7 @@ do
 exp_ts=$(date -d "$exp" +%s 2>/dev/null)
 
 if [[ "$exp_ts" -le "$TODAY" && "$status" = "active" ]]; then
-    lock-vmess "$user"
+    bash /usr/local/sbin/lock-vmess "$user"
 fi
 
 done < "$EXPDB"
