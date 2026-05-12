@@ -448,7 +448,7 @@ USUARIOS_DB="/root/usuarios.db"
 VMESS_DB="/etc/vmess-exp"
 ACCESSLOG="/var/log/xray/access.log"
 
-# 🔥 limit reading to avoid 100% CPU
+# limit log reading
 TAIL_LINES=150
 
 if [[ -f "$FALCON_DB" ]]; then
@@ -466,20 +466,41 @@ fi
 LOGIN_DIR="/var/log/ssh-last-login"
 BW_DIR="/etc/firewallfalcon/bandwidth"
 
-# detect if falcon usage exists
 SHOW_USAGE=false
 [[ -d "$BW_DIR" ]] && SHOW_USAGE=true
 
+############################################
+# CACHE passwd ONCE
+############################################
+
+declare -A USER_UIDS
+
+while IFS=: read -r user _ uid _; do
+    USER_UIDS["$user"]="$uid"
+done < /etc/passwd
+
+############################################
+# CACHE ps ONCE
+############################################
+
+PS_CACHE=$(ps -eo cmd 2>/dev/null)
+
 ssh_sessions_for_user() {
+
   local u="$1"
-  ps -ef 2>/dev/null | awk -v user="$u" '
-    $0 ~ "sshd: "user"@" {c++}
+
+  awk -v user="$u" '
+    $0 ~ "^sshd: "user"@" {c++}
     $0 ~ "sshd: "user" \\[priv\\]" {c++}
     END {print c+0}
-  '
+  ' <<< "$PS_CACHE"
+
 }
 
+############################################
+
 format_date() {
+
   d="$1"
 
   if [[ "$d" == "Never" ]]; then
@@ -488,96 +509,87 @@ format_date() {
   fi
 
   date -d "$d" +"%b %d %H:%M" 2>/dev/null || echo "$d"
+
 }
 
+############################################
+
 get_usage_mb() {
+
   local user="$1"
+
   f="$BW_DIR/$user.usage"
 
   bytes=0
   [[ -f "$f" ]] && bytes=$(cat "$f")
 
   awk "BEGIN {printf \"%.2f\", $bytes/1024/1024}"
-}
 
-uptime_hms() {
-  local up
-  up=$(cut -d. -f1 /proc/uptime 2>/dev/null)
-  printf "%02d:%02d:%02d" $((up/3600)) $(((up%3600)/60)) $((up%60))
 }
 
 ############################################
-# VMESS HELPERS (FIXED ONLY)
+
+uptime_hms() {
+
+  local up
+
+  up=$(cut -d. -f1 /proc/uptime 2>/dev/null)
+
+  printf "%02d:%02d:%02d" \
+  $((up/3600)) \
+  $(((up%3600)/60)) \
+  $((up%60))
+
+}
+
+############################################
+# VMESS CACHE
+############################################
+
+[[ -f "$ACCESSLOG" ]] && VMESS_CACHE=$(tail -n 80 "$ACCESSLOG" 2>/dev/null) || VMESS_CACHE=""
+
+CURRENT_MIN=$(date +"%Y/%m/%d %H:%M")
+
+############################################
+# VMESS HELPERS
 ############################################
 
 vmess_last_seen() {
 
 user="$1"
 
-tail -n $TAIL_LINES "$ACCESSLOG" 2>/dev/null \
-| grep "email: $user" \
+grep "email: $user" <<< "$VMESS_CACHE" \
 | tail -1 \
 | awk '{print $1" "$2}'
 
 }
 
+############################################
+
 vmess_sessions() {
 
 user="$1"
-now=$(date +%s)
 
-tail -n $TAIL_LINES "$ACCESSLOG" 2>/dev/null \
-| grep "email: $user" \
-| awk -v now="$now" '
-
+grep "email: $user" <<< "$VMESS_CACHE" \
+| grep "$CURRENT_MIN" \
+| awk '
 {
-logtime=$1" "$2
-gsub(/\//,"-",logtime)
-
-cmd="date -d \""logtime"\" +%s"
-cmd | getline t
-close(cmd)
-
-if ((now-t)<=120)
 ips[$3]++
-
 }
-
 END {
 print length(ips)
-}
-'
+}'
 
 }
+
+############################################
 
 vmess_online_now() {
 
 user="$1"
-now=$(date +%s)
 
-tail -n $TAIL_LINES "$ACCESSLOG" 2>/dev/null \
-| grep "email: $user" \
-| tail -n 5 \
-| awk -v now="$now" '
-
-{
-logtime=$1" "$2
-gsub(/\//,"-",logtime)
-
-cmd="date -d \""logtime"\" +%s"
-cmd | getline t
-close(cmd)
-
-if ((now-t)<=60) {
-print 1
-exit
-}
-}
-
-END {
-print 0
-}
-'
+grep "email: $user" <<< "$VMESS_CACHE" \
+| grep -q "$CURRENT_MIN"
 
 }
 
@@ -589,36 +601,57 @@ offline_list=()
 TODAY=$(date +%s)
 
 ############################################
-# ORIGINAL SSH LOOP (UNCHANGED)
+# SSH USERS
 ############################################
 
 while IFS= read -r line || [[ -n "$line" ]]; do
 
   [[ -z "$line" || "$line" =~ ^[[:space:]]*# ]] && continue
 
+  ##########################################
+
   if [[ "${DB_TYPE:-falcon}" == "usuarios" ]]; then
+
       u=$(echo "$line" | awk '{print $1}')
+      EXP_DATE=$(echo "$line" | awk '{print $3}')
+
   else
+
       u="${line%%:*}"
+      EXP_DATE=$(echo "$line" | cut -d: -f3)
+
   fi
 
   [[ -z "$u" ]] && continue
 
-  # EXCEPTION: skip users starting with x or v
+  ##########################################
+  # SKIP x/v USERS
+  ##########################################
+
   [[ "$u" =~ ^[xv] ]] && continue
 
-  id "$u" >/dev/null 2>&1 || continue
+  ##########################################
+  # USER CHECK
+  ##########################################
 
-  # hide system users
-  [[ $(id -u "$u") -lt 1000 ]] && continue
+  uid="${USER_UIDS[$u]}"
 
-  # skip expired users
-  EXP_DATE=$(chage -l "$u" | awk -F': ' '/Account expires/{print $2}')
-  if [[ "$EXP_DATE" != "never" ]]; then
+  [[ -z "$uid" ]] && continue
+  [[ "$uid" -lt 1000 ]] && continue
+
+  ##########################################
+  # EXPIRE CHECK
+  ##########################################
+
+  if [[ -n "$EXP_DATE" && "$EXP_DATE" != "never" ]]; then
+
       EXP_TS=$(date -d "$EXP_DATE" +%s 2>/dev/null)
+
       [[ -n "$EXP_TS" && "$EXP_TS" -le "$TODAY" ]] && continue
+
   fi
 
+  ##########################################
 
   sessions=$(ssh_sessions_for_user "$u")
 
@@ -632,22 +665,27 @@ while IFS= read -r line || [[ -n "$line" ]]; do
 
   last_login=$(format_date "$raw_login")
 
+  ##########################################
+
   if $SHOW_USAGE; then
+
       usage=$(get_usage_mb "$u")
 
       row=$(printf "%-10s %-6s %12s %12s" \
       "$u" "$sessions" "$last_login" "$usage MB")
 
-      key="$usage"
+      key=$(printf "%015.2f" "$usage")
 
   else
 
       row=$(printf "%-10s %-6s %-5s" \
       "$u" "$sessions" "$last_login")
 
-      key="0"
+      key="000000000000000"
 
   fi
+
+  ##########################################
 
   if [[ "$sessions" -gt 0 ]]; then
      online_list+=("$key|$row")
@@ -658,12 +696,12 @@ while IFS= read -r line || [[ -n "$line" ]]; do
 done < "$USERS_DB"
 
 ############################################
-# ADD VMESS USERS (NEW PART)
+# VMESS USERS
 ############################################
 
 if [[ -f "$VMESS_DB" ]]; then
 
-while read u exp
+while read -r u exp
 do
 
 [[ -z "$u" ]] && continue
@@ -679,25 +717,29 @@ else
 last_login=$(format_date "$last_seen")
 fi
 
+############################################
+
 if $SHOW_USAGE; then
 
-usage=0
+usage="0.00"
 
 row=$(printf "%-10s %-6s %12s %12s" \
 "$u" "$sessions" "$last_login" "$usage MB")
 
-key="$usage"
+key=$(printf "%015.2f" "$usage")
 
 else
 
 row=$(printf "%-10s %-6s %-5s" \
 "$u" "$sessions" "$last_login")
 
-key="0"
+key="000000000000000"
 
 fi
 
-if [[ "$sessions" -gt 0 ]]; then
+############################################
+
+if vmess_online_now "$u"; then
    online_list+=("$key|$row")
 else
    offline_list+=("$key|$row")
@@ -708,7 +750,7 @@ done < "$VMESS_DB"
 fi
 
 ############################################
-# ORIGINAL OUTPUT (UNCHANGED)
+# OUTPUT
 ############################################
 
 online_count="${#online_list[@]}"
@@ -718,29 +760,49 @@ printf "\n"
 
 if $SHOW_USAGE; then
 
-printf "%-7s %-10s %-10s %12s\n" "USER($online_count)" SESSIONS LAST_LOGIN "($server_uptime)"
-printf "%-7s %0s %10s %12s\n" ------ -------- ------ ------
+printf "%-7s %-10s %-10s %12s\n" \
+"USER($online_count)" \
+SESSIONS \
+LAST_LOGIN \
+"($server_uptime)"
+
+printf "%-7s %0s %10s %12s\n" \
+------ -------- ------ ------
 
 else
 
-printf "%-7s %-10s %-10s\n" "USER($online_count)" SESSIONS LAST_LOGIN
-printf "%-7s %-10s %-10s\n" ---- -------- ----------
+printf "%-7s %-10s %-10s\n" \
+"USER($online_count)" \
+SESSIONS \
+LAST_LOGIN
+
+printf "%-7s %-10s %-10s\n" \
+---- -------- ----------
 
 fi
 
 IFS=$'\n'
 
-# online users sorted by highest usage
+############################################
+# ONLINE USERS
+############################################
+
 for l in $(printf "%s\n" "${online_list[@]}" | sort -nr); do
    echo "${l#*|}"
 done
 
-# separator only if both exist
+############################################
+# SEPARATOR
+############################################
+
 if [[ ${#online_list[@]} -gt 0 && ${#offline_list[@]} -gt 0 ]]; then
    printf "------------------------------------------------------\n"
 fi
 
-# offline users sorted by highest usage
+############################################
+# OFFLINE USERS
+############################################
+
 for l in $(printf "%s\n" "${offline_list[@]}" | sort -nr); do
    echo "${l#*|}"
 done
