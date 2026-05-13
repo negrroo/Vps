@@ -299,6 +299,66 @@ metrics.apple.com
 EOF
 }
 
+BlockingDns1() {
+sudo tee /usr/local/bin/update-blocked-dns.sh > /dev/null <<'EOF'
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+DOMAIN_FILE="/etc/block-sites/domains.txt"
+DNSMASQ_BLOCK="/etc/dnsmasq.d/blocked-domains.conf"
+
+> "$DNSMASQ_BLOCK"
+
+while IFS= read -r line || [ -n "$line" ]; do
+
+    d="$(echo "$line" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+
+    [ -z "$d" ] && continue
+
+    case "$d" in
+        \#*) continue ;;
+    esac
+
+    echo "address=/$d/0.0.0.0" >> "$DNSMASQ_BLOCK"
+    echo "address=/$d/::" >> "$DNSMASQ_BLOCK"
+
+done < "$DOMAIN_FILE"
+
+systemctl restart dnsmasq
+
+echo "DNS blocklist updated"
+
+EOF
+BlockingDns2
+BlockingDns3
+}
+
+BlockingDns2() {
+chmod +x /usr/local/bin/update-blocked-dns.sh
+bash /usr/local/bin/update-blocked-dns.sh
+}
+
+BlockingDns3() {
+# backup current resolv.conf only once
+if [ ! -f /etc/resolv.conf.backup ]; then
+    cp /etc/resolv.conf /etc/resolv.conf.backup 2>/dev/null || true
+fi
+
+# disable systemd-resolved safely
+if systemctl is-active --quiet systemd-resolved; then
+systemctl disable systemd-resolved --now 2>/dev/null || true
+fi
+
+# remove symlink/file
+rm -f /etc/resolv.conf
+
+# recreate only if not already correct
+if ! grep -q "^nameserver 127.0.0.1$" /etc/resolv.conf 2>/dev/null; then
+    echo "nameserver 127.0.0.1" > /etc/resolv.conf
+fi
+}
+
 Expired1() {
 sudo mkdir -p /var/lib/ssh-expiry
 sudo touch /var/lib/ssh-expiry/expired_notified.list
@@ -1077,6 +1137,7 @@ Akami() {
 Updates
 Dependencies
 BlockingDomains1
+BlockingDns1
 Expired1
 LastLogin1
 Monitor1
@@ -1087,6 +1148,7 @@ Updates
 Firewall
 Dependencies
 BlockingDomains1
+BlockingDns1
 Expired1
 LastLogin1
 Monitor1
@@ -1445,6 +1507,7 @@ zNTVIP
 elif [ $Cond == 'Init' ]
 then
 BlockingDomains1
+BlockingDns1
 Expired1
 LastLogin1
 Monitor1
