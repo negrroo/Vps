@@ -38,7 +38,7 @@ CronMis
 #Installition
 Firewall() {
 # Requirements before installation the Firewall for blocking domains (Except Akami Server)
-apt install -y dnsutils; apt install -y nftables;
+apt install -y dnsutils; apt install -y nftables; apt install -y dnsmasq;
 }
 
 #Installition
@@ -1238,6 +1238,7 @@ chmod +x /usr/local/bin/ssh-usage-telegram.sh
 
 Akami() {
 Updates
+Firewall
 Dependencies
 BlockingDomains1
 BlockingDns1
