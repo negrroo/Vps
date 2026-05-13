@@ -614,6 +614,9 @@ USUARIOS_DB="/root/usuarios.db"
 VMESS_DB="/etc/vmess-exp"
 ACCESSLOG="/var/log/xray/access.log"
 
+VMESS_LAST_DIR="/var/log/vmess-last"
+mkdir -p "$VMESS_LAST_DIR"
+
 # limit log reading
 TAIL_LINES=150
 
@@ -761,6 +764,28 @@ grep "email: $user" <<< "$VMESS_CACHE" \
 
 ############################################
 
+save_vmess_last_login() {
+
+local user="$1"
+local logtime="$2"
+
+[[ -z "$user" || -z "$logtime" ]] && return
+
+echo "$logtime" > "$VMESS_LAST_DIR/$user"
+
+}
+
+############################################
+
+get_vmess_saved_login() {
+
+local user="$1"
+
+[[ -f "$VMESS_LAST_DIR/$user" ]] && cat "$VMESS_LAST_DIR/$user"
+
+}
+############################################
+
 online_list=()
 offline_list=()
 
@@ -876,11 +901,44 @@ sessions=$(vmess_sessions "$u")
 
 last_seen=$(vmess_last_seen "$u")
 
-if [[ -z "$last_seen" ]]
-then
-last_login="Never"
+############################################
+# USER ONLINE
+############################################
+
+if vmess_online_now "$u"; then
+
+    if [[ -n "$last_seen" ]]; then
+
+        save_vmess_last_login "$u" "$last_seen"
+
+        last_login=$(format_date "$last_seen")
+
+    else
+
+        saved_login=$(get_vmess_saved_login "$u")
+
+        if [[ -n "$saved_login" ]]; then
+            last_login=$(format_date "$saved_login")
+        else
+            last_login="Never"
+        fi
+
+    fi
+
+############################################
+# USER OFFLINE
+############################################
+
 else
-last_login=$(format_date "$last_seen")
+
+    saved_login=$(get_vmess_saved_login "$u")
+
+    if [[ -n "$saved_login" ]]; then
+        last_login=$(format_date "$saved_login")
+    else
+        last_login="Never"
+    fi
+
 fi
 
 ############################################
