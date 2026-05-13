@@ -117,106 +117,209 @@ sudo tee /usr/local/bin/update-blocked-ips.sh > /dev/null <<'EOF'
 set -euo pipefail
 
 DOMAIN_FILE="/etc/block-sites/domains.txt"
+
 TMP4="/tmp/blocksites_ipv4.txt"
 TMP6="/tmp/blocksites_ipv6.txt"
-NFT_TABLE="inet"
+
 NFT_TABLE_FILTER="filter"
 NFT_SET4="blocked4"
 NFT_SET6="blocked6"
 
-# Ensure domain file exists
+HAPROXY_CFG="/etc/haproxy/haproxy.cfg"
+HAPROXY_BLOCK="/etc/haproxy/blocked_sni.lst"
+
+############################################
+# CHECK DOMAIN FILE
+############################################
+
 if [ ! -f "$DOMAIN_FILE" ]; then
   echo "Domain file not found: $DOMAIN_FILE" >&2
   exit 1
 fi
 
-# Build IP lists
+############################################
+# BUILD IP LISTS
+############################################
+
 : > "$TMP4"
 : > "$TMP6"
+: > "$HAPROXY_BLOCK"
 
 while IFS= read -r line || [ -n "$line" ]; do
-  # strip whitespace and skip comments/empty lines
+
   d="$(echo "$line" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+
   [ -z "$d" ] && continue
+
   case "$d" in
     \#*) continue ;;
   esac
 
-  # IPv4
-  dig +short A "$d" | grep -E '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' >> "$TMP4" || true
-  # IPv6
-  dig +short AAAA "$d" | grep -E ':' >> "$TMP6" || true
+  ##########################################
+  # SAVE DOMAIN FOR HAPROXY SNI BLOCK
+  ##########################################
+
+  echo "$d" >> "$HAPROXY_BLOCK"
+
+  ##########################################
+  # IPV4
+  ##########################################
+
+  dig +short A "$d" \
+  | grep -E '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' \
+  >> "$TMP4" || true
+
+  ##########################################
+  # IPV6
+  ##########################################
+
+  dig +short AAAA "$d" \
+  | grep -E ':' \
+  >> "$TMP6" || true
+
 done < "$DOMAIN_FILE"
 
-# uniq + sort
-if [ -s "$TMP4" ]; then
-  sort -u "$TMP4" -o "$TMP4"
-else
-  > "$TMP4"
-fi
+############################################
+# SORT UNIQUE
+############################################
 
-if [ -s "$TMP6" ]; then
-  sort -u "$TMP6" -o "$TMP6"
-else
-  > "$TMP6"
-fi
+sort -u "$TMP4" -o "$TMP4" 2>/dev/null || true
+sort -u "$TMP6" -o "$TMP6" 2>/dev/null || true
+sort -u "$HAPROXY_BLOCK" -o "$HAPROXY_BLOCK" 2>/dev/null || true
 
-# Ensure table exists
+############################################
+# ENSURE NFT TABLE
+############################################
+
 if ! nft list table inet "$NFT_TABLE_FILTER" >/dev/null 2>&1; then
   nft add table inet "$NFT_TABLE_FILTER"
 fi
 
-# Ensure sets exist (create if missing)
+############################################
+# ENSURE NFT SETS
+############################################
+
 if ! nft list set inet "$NFT_TABLE_FILTER" "$NFT_SET4" >/dev/null 2>&1; then
   nft add set inet "$NFT_TABLE_FILTER" "$NFT_SET4" { type ipv4_addr\; flags interval\; }
 fi
+
 if ! nft list set inet "$NFT_TABLE_FILTER" "$NFT_SET6" >/dev/null 2>&1; then
   nft add set inet "$NFT_TABLE_FILTER" "$NFT_SET6" { type ipv6_addr\; flags interval\; }
 fi
 
-# Ensure chains exist (output + forward + nat prerouting for early drops)
-nft list chain inet "$NFT_TABLE_FILTER" output >/dev/null 2>&1 || nft add chain inet "$NFT_TABLE_FILTER" output { type filter hook output priority 0 \; }
-nft list chain inet "$NFT_TABLE_FILTER" forward >/dev/null 2>&1 || nft add chain inet "$NFT_TABLE_FILTER" forward { type filter hook forward priority 0 \; }
+############################################
+# ENSURE CHAINS
+############################################
 
-# Add drop rules for sets if not present
-# IPv4 forward/output
+nft list chain inet "$NFT_TABLE_FILTER" output >/dev/null 2>&1 || \
+nft add chain inet "$NFT_TABLE_FILTER" output { type filter hook output priority 0 \; }
+
+nft list chain inet "$NFT_TABLE_FILTER" forward >/dev/null 2>&1 || \
+nft add chain inet "$NFT_TABLE_FILTER" forward { type filter hook forward priority 0 \; }
+
+############################################
+# ENSURE DROP RULES
+############################################
+
 if ! nft list ruleset | grep -q "ip daddr @${NFT_SET4} drop"; then
-  nft insert rule inet "$NFT_TABLE_FILTER" forward ip daddr @${NFT_SET4} drop || true
+
   nft insert rule inet "$NFT_TABLE_FILTER" output ip daddr @${NFT_SET4} drop || true
-fi
-# IPv6 forward/output
-if ! nft list ruleset | grep -q "ip6 daddr @${NFT_SET6} drop"; then
-  nft insert rule inet "$NFT_TABLE_FILTER" forward ip6 daddr @${NFT_SET6} drop || true
-  nft insert rule inet "$NFT_TABLE_FILTER" output ip6 daddr @${NFT_SET6} drop || true
+  nft insert rule inet "$NFT_TABLE_FILTER" forward ip daddr @${NFT_SET4} drop || true
+
 fi
 
-# Rebuild sets: flush then add elements
+if ! nft list ruleset | grep -q "ip6 daddr @${NFT_SET6} drop"; then
+
+  nft insert rule inet "$NFT_TABLE_FILTER" output ip6 daddr @${NFT_SET6} drop || true
+  nft insert rule inet "$NFT_TABLE_FILTER" forward ip6 daddr @${NFT_SET6} drop || true
+
+fi
+
+############################################
+# BLOCK QUIC / HTTP3
+############################################
+
+if ! nft list ruleset | grep -q "udp dport 443 drop"; then
+
+  nft insert rule inet "$NFT_TABLE_FILTER" output udp dport 443 drop || true
+  nft insert rule inet "$NFT_TABLE_FILTER" forward udp dport 443 drop || true
+
+fi
+
+############################################
+# REBUILD NFT SETS
+############################################
+
 nft flush set inet "$NFT_TABLE_FILTER" "$NFT_SET4" >/dev/null 2>&1 || true
 nft flush set inet "$NFT_TABLE_FILTER" "$NFT_SET6" >/dev/null 2>&1 || true
 
-# Add ipv4 elements (if any)
+############################################
+# ADD IPV4
+############################################
+
 if [ -s "$TMP4" ]; then
+
   elems=$(paste -sd, "$TMP4")
-  # if adding many elements might exceed cmdline length; handle per-line add if that happens
+
   nft add element inet "$NFT_TABLE_FILTER" "$NFT_SET4" { $elems } 2>/dev/null || {
-    # fallback: add line-by-line
-    while read -r ip; do nft add element inet "$NFT_TABLE_FILTER" "$NFT_SET4" { $ip } 2>/dev/null || true; done < "$TMP4"
+
+    while read -r ip; do
+      nft add element inet "$NFT_TABLE_FILTER" "$NFT_SET4" { $ip } 2>/dev/null || true
+    done < "$TMP4"
+
   }
+
 fi
 
-# Add ipv6 elements
+############################################
+# ADD IPV6
+############################################
+
 if [ -s "$TMP6" ]; then
+
   elems6=$(paste -sd, "$TMP6")
+
   nft add element inet "$NFT_TABLE_FILTER" "$NFT_SET6" { $elems6 } 2>/dev/null || {
-    while read -r ip; do nft add element inet "$NFT_TABLE_FILTER" "$NFT_SET6" { $ip } 2>/dev/null || true; done < "$TMP6"
+
+    while read -r ip; do
+      nft add element inet "$NFT_TABLE_FILTER" "$NFT_SET6" { $ip } 2>/dev/null || true
+    done < "$TMP6"
+
   }
+
 fi
 
-echo "Updated blocked IP sets:"
+############################################
+# HAPROXY SNI BLOCK
+############################################
+
+if [ -f "$HAPROXY_CFG" ]; then
+
+  if ! grep -q "blocked_sni.lst" "$HAPROXY_CFG"; then
+
+    sed -i '/tcp-request inspect-delay/a \
+    acl blocked_ssl req.ssl_sni -f /etc/haproxy/blocked_sni.lst\n\
+    tcp-request content reject if blocked_ssl' "$HAPROXY_CFG"
+
+    systemctl restart haproxy || true
+
+  fi
+
+fi
+
+############################################
+# DONE
+############################################
+
+echo "Updated blocked IP sets"
 echo "IPv4:"
 nft list set inet "$NFT_TABLE_FILTER" "$NFT_SET4" || true
+
 echo "IPv6:"
 nft list set inet "$NFT_TABLE_FILTER" "$NFT_SET6" || true
+
+echo "HAProxy SNI block list:"
+cat "$HAPROXY_BLOCK" || true
 
 exit 0
 EOF
