@@ -37,14 +37,17 @@ CronMis
 
 #Installition
 Firewall() {
-# Requirements before installation the Firewall for blocking domains (Except Akami Server)
-apt install -y dnsutils; apt install -y nftables; apt install -y dnsmasq;
+# Requirements before installation the Firewall for blocking domains
+dpkg -s dnsutils >/dev/null 2>&1 || apt install -y dnsutils
+dpkg -s nftables >/dev/null 2>&1 || apt install -y nftables
+dpkg -s dnsmasq >/dev/null 2>&1 || apt install -y dnsmasq
 }
 
 #Installition
 Dependencies() {
 # Requirements before installation the falcon script
-apt install -y bc; apt install -y jq;
+dpkg -s jq >/dev/null 2>&1 || apt install -y jq
+dpkg -s bc >/dev/null 2>&1 || apt install -y bc
 }
 
 CronMis() {
@@ -1236,18 +1239,7 @@ Usage2() {
 chmod +x /usr/local/bin/ssh-usage-telegram.sh
 }
 
-Akami() {
-Updates
-Firewall
-Dependencies
-BlockingDomains1
-BlockingDns1
-Expired1
-LastLogin1
-Monitor1
-}
-
-Digital() {
+Depend() {
 Updates
 Firewall
 Dependencies
@@ -1580,13 +1572,9 @@ Finalizing
 
 # Script Selection
 # Working with ./Script.sh beta/build ...
-if [ $Cond == 'Akami' ]
+if [ $Cond == 'Depend' ]
 then
-Akami
-
-elif [ $Cond == 'Digital' ]
-then
-Digital
+Depend
 
 elif [ $Cond == 'Falcon' ]
 then
