@@ -1607,8 +1607,6 @@ Daily1
 Monthly1
 Usage1
 curl -L -o install.sh "https://raw.githubusercontent.com/firewallfalcons/FirewallFalcon-Manager/main/install.sh" && chmod +x install.sh && sudo ./install.sh && rm install.sh
-CronTablet
-Finalizing
 }
 
 Montazer() {
@@ -1661,9 +1659,11 @@ if [ $Cond == 'Depend' ]
 then
 Depend
 
-elif [ $Cond == 'Applex' ]
+elif [ $Cond == 'Final' ]
 then
 Applex
+CronTablet
+Finalizing
 
 elif [ $Cond == 'Falcon' ]
 then
