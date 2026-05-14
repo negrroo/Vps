@@ -438,6 +438,7 @@ echo "DNS blocklist updated"
 EOF
 BlockingDns2
 BlockingDns3
+BlockingDns4
 }
 
 BlockingDns2() {
@@ -452,9 +453,9 @@ if [ ! -f /etc/resolv.conf.backup ]; then
 fi
 
 # disable systemd-resolved safely
-if systemctl is-active --quiet systemd-resolved; then
-systemctl disable systemd-resolved --now 2>/dev/null || true
-fi
+#if systemctl is-active --quiet systemd-resolved; then
+#systemctl disable systemd-resolved --now 2>/dev/null || true
+#fi
 
 # remove symlink/file
 rm -f /etc/resolv.conf
@@ -463,6 +464,27 @@ rm -f /etc/resolv.conf
 if ! grep -q "^nameserver 127.0.0.1$" /etc/resolv.conf 2>/dev/null; then
     echo "nameserver 127.0.0.1" > /etc/resolv.conf
 fi
+}
+
+BlockingDns4() {
+sudo tee /usr/local/bin/dns-on.sh > /dev/null <<'EOF'
+#!/bin/bash
+
+cp /etc/resolv.conf.backup /etc/resolv.conf
+
+EOF
+
+sudo tee /usr/local/bin/dns-off.sh > /dev/null <<'EOF'
+#!/bin/bash
+
+cat > /etc/resolv.conf <<EOF2
+nameserver 127.0.0.1
+EOF2
+
+EOF
+
+chmod +x /usr/local/bin/dns-on.sh
+chmod +x /usr/local/bin/dns-off.sh
 }
 
 Expired1() {
@@ -1555,11 +1577,13 @@ add_job() {
 }
 
 # SSH jobs
+add_job "59 23 * * *" /usr/local/bin/dns-on.sh
 add_job "0 0 * * *" /usr/local/bin/ssh-expiry-check.sh
 add_job "0 0 * * *" /usr/local/bin/ssh-usage-daily.sh
 add_job "0 0 1 * *" /usr/local/bin/ssh-usage-reset-month.sh
 add_job "0 0 * * *" /usr/local/bin/ssh-usage-telegram.sh
 add_job "0 0 * * *" /usr/local/bin/sync_users_db.sh
+add_job "1 0 * * *" /usr/local/bin/dns-off.sh
 
 crontab "$CRON_TMP"
 rm -f "$CRON_TMP"
