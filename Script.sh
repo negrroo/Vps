@@ -1323,11 +1323,14 @@ Depend() {
 Updates
 Firewall
 Dependencies
-BlockingDomains1
-BlockingDns1
 Expired1
 LastLogin1
 Monitor1
+}
+
+Applex() {
+BlockingDomains1
+BlockingDns1
 }
 
 # Custom Proxy 8080
@@ -1657,6 +1660,10 @@ Finalizing
 if [ $Cond == 'Depend' ]
 then
 Depend
+
+elif [ $Cond == 'Applex' ]
+then
+Applex
 
 elif [ $Cond == 'Falcon' ]
 then
