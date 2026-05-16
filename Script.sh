@@ -88,6 +88,7 @@ ufw reload >/dev/null 2>&1
 Finalizing() {
 # Time Change Step 1 or Step 2
 sudo timedatectl set-timezone Asia/Riyadh
+sudo systemctl restart cron
 }
 
 
