@@ -915,10 +915,16 @@ done < "$USERS_DB"
 
 if [[ -f "$VMESS_DB" ]]; then
 
-while read -r u exp
+while read -r u exp status
 do
 
 [[ -z "$u" ]] && continue
+
+############################################
+# SKIP LOCKED USERS
+############################################
+
+[[ "$status" == "locked" ]] && continue
 
 sessions=$(vmess_sessions "$u")
 
