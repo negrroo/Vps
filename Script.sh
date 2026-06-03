@@ -454,9 +454,10 @@ if [ ! -f /etc/resolv.conf.backup ]; then
 fi
 
 # disable systemd-resolved safely
-#if systemctl is-active --quiet systemd-resolved; then
-#systemctl disable systemd-resolved --now 2>/dev/null || true
-#fi
+if systemctl is-active --quiet systemd-resolved; then
+systemctl stop systemd-resolved 2>/dev/null || true
+systemctl disable systemd-resolved 2>/dev/null || true
+fi
 
 # remove symlink/file
 rm -f /etc/resolv.conf
