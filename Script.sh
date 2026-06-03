@@ -1591,10 +1591,11 @@ add_job() {
 add_job "59 23 * * *" /usr/local/bin/dns-on.sh
 add_job "0 0 * * *" /usr/local/bin/ssh-expiry-check.sh
 add_job "0 0 * * *" /usr/local/bin/ssh-usage-daily.sh
-add_job "0 0 1 * *" /usr/local/bin/ssh-usage-reset-month.sh
 add_job "0 0 * * *" /usr/local/bin/ssh-usage-telegram.sh
 add_job "0 0 * * *" /usr/local/bin/sync_users_db.sh
 add_job "1 0 * * *" /usr/local/bin/dns-off.sh
+add_job "1 0 1 * *" /usr/local/bin/ssh-usage-reset-month.sh
+add_job "2 0 1 * *" /sbin/reboot
 
 crontab "$CRON_TMP"
 rm -f "$CRON_TMP"
