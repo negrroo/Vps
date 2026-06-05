@@ -432,7 +432,13 @@ while IFS= read -r line || [ -n "$line" ]; do
 
 done < "$DOMAIN_FILE"
 
+# disable systemd-resolved safely
+if systemctl list-unit-files 2>/dev/null | grep -q "^systemd-resolved.service"; then
+systemctl stop systemd-resolved 2>/dev/null || true
+systemctl disable systemd-resolved 2>/dev/null || true
+sleep 1
 systemctl restart dnsmasq
+fi
 
 echo "DNS blocklist updated"
 
@@ -451,12 +457,6 @@ BlockingDns3() {
 # backup current resolv.conf only once
 if [ ! -f /etc/resolv.conf.backup ]; then
     cp /etc/resolv.conf /etc/resolv.conf.backup 2>/dev/null || true
-fi
-
-# disable systemd-resolved safely
-if systemctl is-active --quiet systemd-resolved; then
-systemctl stop systemd-resolved 2>/dev/null || true
-systemctl disable systemd-resolved 2>/dev/null || true
 fi
 
 # remove symlink/file
