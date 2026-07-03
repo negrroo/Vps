@@ -1725,51 +1725,30 @@ wget -q -O /usr/local/bin/menuv https://raw.githubusercontent.com/negrroo/Vps/ma
 ################
 
 Falcon() {
-Usage
 bash <(curl -Ls https://codeberg.org/firewallfalcons/FirewallFalcon-Manager/raw/branch/main/install.sh)
 }
 
 Montazer() {
-NoFalcon1
-Proxy1
 wget https://raw.githubusercontent.com/MuntazerVpn/ehoop/main/installer -O installer && chmod +x installer && ./installer
-CronTablet
-Finalizing
-onMontazer
 }
 
 Dragon() {
 apt-get update -y; apt-get upgrade -y; wget https://raw.githubusercontent.com/sbatrow/DARKSSH-MANAGER/master/Dark; chmod 777 Dark; ./Dark
-CronTablet
-Finalizing
 }
 
 NTVIP() {
-NoFalcon1
-Proxy1
 # sysctl -w net.ipv6.conf.all.disable_ipv6=1 && sysctl -w net.ipv6.conf.default.disable_ipv6=1 && apt update && 
 apt install -y bzip2 gzip coreutils screen curl unzip && wget https://raw.githubusercontent.com/NETWORKTWEAKER/AUTO-SCRIPT/master/setup1.sh && chmod +x setup1.sh && sed -i -e 's/\r$//' setup1.sh && screen -S setup ./setup1.sh
-CronTablet
-Finalizing
-onNTVIP
 }
 
 zNTVIP() {
-NoFalcon1
-Proxy1
 # sysctl -w net.ipv6.conf.all.disable_ipv6=1 && sysctl -w net.ipv6.conf.default.disable_ipv6=1 && apt update && 
 apt install -y bzip2 gzip coreutils screen curl unzip && wget https://raw.githubusercontent.com/V3SAKURAAIRIV3/Error404/main/setup.sh && chmod +x setup.sh && sed -i -e 's/\r$//' setup.sh && screen -S setup ./setup.sh
-CronTablet
-Finalizing
-onNTVIP
 }
 
 Wolf() {
-Firewallx
 wget -q https://raw.githubusercontent.com/AtizaD/WOLF-VPS-MANAGER/main/hehe -q; chmod 777 hehe; ./hehe
 wget -q -O /bin/conexao https://raw.githubusercontent.com/negrroo/Vps/main/Scripts/WOLF-VPS-MANAGER/Modulos/V2ray/vconexao && chmod +x /bin/conexao
-CronTablet
-Finalizing
 }
 #
 
@@ -1787,23 +1766,44 @@ Finalizing
 
 elif [ $Cond == 'Falcon' ]
 then
+Daily1
+Monthly1
+Usage1
 Falcon
+menuv
 
 elif [ $Cond == 'Montazer' ]
 then
+NoFalcon1
+Proxy1
 Montazer
+CronTablet
+Finalizing
+onMontazer
 
 elif [ $Cond == 'Dragon' ]
 then
 Dragon
+CronTablet
+Finalizing
 
 elif [ $Cond == 'NTVIP' ]
 then
+NoFalcon1
+Proxy1
 NTVIP
+CronTablet
+Finalizing
+onNTVIP
 
 elif [ $Cond == 'zNTVIP' ]
 then
+NoFalcon1
+Proxy1
 zNTVIP
+CronTablet
+Finalizing
+onNTVIP
 
 elif [ $Cond == 'Applex' ]
 then
@@ -1833,7 +1833,10 @@ Proxy1
 
 elif [ $Cond == 'Wolf' ]
 then
+Firewallx
 Wolf
+CronTablet
+Finalizing
 
 elif [ $Cond == 'menuv' ]
 then
