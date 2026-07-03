@@ -133,6 +133,59 @@ HAPROXY_CFG="/etc/haproxy/haproxy.cfg"
 HAPROXY_BLOCK="/etc/haproxy/blocked_sni.lst"
 
 ############################################
+# CONFIGURATION
+############################################
+
+DNS_SERVERS=(
+    "1.1.1.1"
+    "8.8.8.8"
+    "9.9.9.9"
+)
+
+DNS_TIMEOUT=2
+DNS_RETRIES=3
+
+BLOCK_QUIC=true
+
+LOG_ENABLED=true
+LOG_FILE="/var/log/blocksites.log"
+
+############################################
+# FUNCTIONS
+############################################
+
+log() {
+
+    [ "$LOG_ENABLED" != true ] && return
+
+    echo "[$(date '+%F %T')] $*" >> "$LOG_FILE"
+
+}
+
+valid_domain() {
+
+    [[ "$1" =~ ^[A-Za-z0-9.-]+$ ]]
+
+}
+
+resolve_record() {
+
+    local type="$1"
+    local domain="$2"
+
+    for dns in "${DNS_SERVERS[@]}"; do
+
+        timeout "${DNS_TIMEOUT}" \
+        dig @"$dns" +tries="$DNS_RETRIES" +short "$type" "$domain" 2>/dev/null
+
+    done
+
+    timeout "${DNS_TIMEOUT}" \
+    dig +tries="$DNS_RETRIES" +short "$type" "$domain" 2>/dev/null
+
+}
+
+############################################
 # CHECK DOMAIN FILE
 ############################################
 
@@ -159,6 +212,11 @@ while IFS= read -r line || [ -n "$line" ]; do
     \#*) continue ;;
   esac
 
+  if ! valid_domain "$d"; then
+    log "Invalid domain skipped: $d"
+    continue
+  fi
+
   ##########################################
   # SAVE DOMAIN FOR HAPROXY SNI BLOCK
   ##########################################
@@ -169,7 +227,7 @@ while IFS= read -r line || [ -n "$line" ]; do
   # IPV4
   ##########################################
 
-  dig +short A "$d" \
+  resolve_record A "$d" \
   | grep -E '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' \
   >> "$TMP4" || true
 
@@ -177,7 +235,7 @@ while IFS= read -r line || [ -n "$line" ]; do
   # IPV6
   ##########################################
 
-  dig +short AAAA "$d" \
+  resolve_record AAAA "$d" \
   | grep -E ':' \
   >> "$TMP6" || true
 
