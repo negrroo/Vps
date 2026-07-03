@@ -1612,10 +1612,8 @@ wget -q -O /usr/local/bin/menuv https://raw.githubusercontent.com/negrroo/Vps/ma
 ################
 
 Falcon() {
-Daily1
-Monthly1
-Usage1
-curl -L -o install.sh "https://raw.githubusercontent.com/firewallfalcons/FirewallFalcon-Manager/main/install.sh" && chmod +x install.sh && sudo ./install.sh && rm install.sh
+Usage
+bash <(curl -Ls https://codeberg.org/firewallfalcons/FirewallFalcon-Manager/raw/branch/main/install.sh)
 }
 
 Montazer() {
