@@ -120,6 +120,11 @@ sudo tee /usr/local/bin/update-blocked-ips.sh > /dev/null <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 
+START_TIME=$(date +%s)
+
+TOTAL_DOMAINS=0
+FAILED_DOMAINS=0
+
 DOMAIN_FILE="/etc/block-sites/domains.txt"
 
 TMP4="/tmp/blocksites_ipv4.txt"
@@ -221,23 +226,45 @@ while IFS= read -r line || [ -n "$line" ]; do
   # SAVE DOMAIN FOR HAPROXY SNI BLOCK
   ##########################################
 
+  TOTAL_DOMAINS=$((TOTAL_DOMAINS+1))
+
   echo "$d" >> "$HAPROXY_BLOCK"
 
   ##########################################
   # IPV4
   ##########################################
 
-  resolve_record A "$d" \
-  | grep -E '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' \
-  >> "$TMP4" || true
+  ipv4_result="$(resolve_record A "$d")"
+
+  if [ -n "$ipv4_result" ]; then
+
+    echo "$ipv4_result" \
+    | grep -E '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' \
+    >> "$TMP4" || true
+
+  fi
 
   ##########################################
   # IPV6
   ##########################################
 
-  resolve_record AAAA "$d" \
-  | grep -E ':' \
-  >> "$TMP6" || true
+  ipv6_result="$(resolve_record AAAA "$d")"
+
+  if [ -n "$ipv6_result" ]; then
+
+    echo "$ipv6_result" \
+    | grep -E ':' \
+    >> "$TMP6" || true
+
+  fi
+
+  if [ -z "$ipv4_result" ] && [ -z "$ipv6_result" ]; then
+
+    FAILED_DOMAINS=$((FAILED_DOMAINS+1))
+
+    log "DNS lookup failed: $d"
+
+  fi
 
 done < "$DOMAIN_FILE"
 
@@ -356,6 +383,7 @@ fi
 ############################################
 
 if [ -f "$HAPROXY_CFG" ]; then
+cp "$HAPROXY_CFG" "${HAPROXY_CFG}.bak" 2>/dev/null || true
 
   if ! grep -q "blocked_sni.lst" "$HAPROXY_CFG"; then
 
@@ -363,7 +391,19 @@ if [ -f "$HAPROXY_CFG" ]; then
     acl blocked_ssl req.ssl_sni -f /etc/haproxy/blocked_sni.lst\n\
     tcp-request content reject if blocked_ssl' "$HAPROXY_CFG"
 
+    if haproxy -c -f "$HAPROXY_CFG" >/dev/null 2>&1; then
+
     systemctl restart haproxy || true
+
+    log "HAProxy configuration updated."
+
+    else
+
+    mv "${HAPROXY_CFG}.bak" "$HAPROXY_CFG"
+
+    log "HAProxy validation failed. Previous configuration restored."
+
+    fi
 
   fi
 
@@ -373,12 +413,40 @@ fi
 # DONE
 ############################################
 
-echo "Updated blocked IP sets"
+END_TIME=$(date +%s)
+ELAPSED=$((END_TIME-START_TIME))
+
+IPV4_COUNT=$(wc -l < "$TMP4")
+IPV6_COUNT=$(wc -l < "$TMP6")
+
+log "==============================="
+log "Update completed"
+log "Domains processed : $TOTAL_DOMAINS"
+log "Failed DNS        : $FAILED_DOMAINS"
+log "IPv4 addresses    : $IPV4_COUNT"
+log "IPv6 addresses    : $IPV6_COUNT"
+log "Execution time    : ${ELAPSED}s"
+log "==============================="
+
+echo
+echo "========== Block Sites =========="
+echo "Domains processed : $TOTAL_DOMAINS"
+echo "Failed DNS        : $FAILED_DOMAINS"
+echo "IPv4 addresses    : $IPV4_COUNT"
+echo "IPv6 addresses    : $IPV6_COUNT"
+echo "Execution time    : ${ELAPSED}s"
+echo "================================="
+echo
+
 echo "IPv4:"
 nft list set inet "$NFT_TABLE_FILTER" "$NFT_SET4" || true
 
+echo
+
 echo "IPv6:"
 nft list set inet "$NFT_TABLE_FILTER" "$NFT_SET6" || true
+
+echo
 
 echo "HAProxy SNI block list:"
 cat "$HAPROXY_BLOCK" || true
