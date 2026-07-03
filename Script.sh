@@ -110,9 +110,6 @@ EOF
 BlockingDomains2
 BlockingDomains3
 BlockingDomains4
-BlockingDomains5
-BlockingDomains6
-BlockingDomains7
 }
 
 BlockingDomains2() {
@@ -461,37 +458,6 @@ sudo /usr/local/bin/update-blocked-ips.sh
 }
 
 BlockingDomains4() {
-sudo tee /etc/systemd/system/update-blocked-ips.service > /dev/null <<'EOF'
-[Unit]
-Description=Update blocked site IP sets
-
-[Service]
-Type=oneshot
-ExecStart=/usr/local/bin/update-blocked-ips.sh
-EOF
-}
-
-BlockingDomains5() {
-sudo tee /etc/systemd/system/update-blocked-ips.timer > /dev/null <<'EOF'
-[Unit]
-Description=Run update-blocked-ips daily at 00:00
-
-[Timer]
-OnCalendar=*-*-* 00:00:00
-Persistent=true
-
-[Install]
-WantedBy=timers.target
-EOF
-}
-
-BlockingDomains6() {
-sudo systemctl daemon-reload
-sudo systemctl enable --now update-blocked-ips.timer
-sudo systemctl list-timers --all | grep update-blocked-ips
-}
-
-BlockingDomains7() {
 rm -r /etc/block-sites/domains.txt
 sudo tee /etc/block-sites/domains.txt > /dev/null <<'EOF'
 # example:
@@ -1714,12 +1680,13 @@ add_job() {
 }
 
 # SSH jobs
-add_job "59 23 * * *" /usr/local/bin/dns-on.sh
+add_job "59 2-23/3 * * *" /usr/local/bin/dns-on.sh
+add_job "0 */3 * * *" /usr/local/bin/update-blocked-ips.sh
 add_job "0 0 * * *" /usr/local/bin/ssh-expiry-check.sh
 add_job "0 0 * * *" /usr/local/bin/ssh-usage-daily.sh
 add_job "0 0 * * *" /usr/local/bin/ssh-usage-telegram.sh
 add_job "0 0 * * *" /usr/local/bin/sync_users_db.sh
-add_job "1 0 * * *" /usr/local/bin/dns-off.sh
+add_job "1 0-21/3 * * *" /usr/local/bin/dns-off.sh
 add_job "1 0 1 * *" /usr/local/bin/ssh-usage-reset-month.sh
 add_job "2 0 1 * *" /sbin/reboot
 
