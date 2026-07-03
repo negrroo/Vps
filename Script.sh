@@ -564,16 +564,36 @@ BlockingDns4() {
 sudo tee /usr/local/bin/dns-on.sh > /dev/null <<'EOF'
 #!/bin/bash
 
+LOG_FILE="/var/log/dns-switch.log"
+
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] dns-on.sh started" >> "$LOG_FILE"
+
 cp /etc/resolv.conf.backup /etc/resolv.conf
+
+if [ $? -eq 0 ]; then
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] resolv.conf restored successfully" >> "$LOG_FILE"
+else
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] ERROR restoring resolv.conf" >> "$LOG_FILE"
+fi
 
 EOF
 
 sudo tee /usr/local/bin/dns-off.sh > /dev/null <<'EOF'
 #!/bin/bash
 
+LOG_FILE="/var/log/dns-switch.log"
+
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] dns-off.sh started" >> "$LOG_FILE"
+
 cat > /etc/resolv.conf <<EOF2
 nameserver 127.0.0.1
 EOF2
+
+if [ $? -eq 0 ]; then
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] resolv.conf switched to 127.0.0.1" >> "$LOG_FILE"
+else
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] ERROR writing resolv.conf" >> "$LOG_FILE"
+fi
 
 EOF
 
@@ -1680,13 +1700,13 @@ add_job() {
 }
 
 # SSH jobs
-add_job "59 2-23/3 * * *" /usr/local/bin/dns-on.sh
+add_job "58 2-23/3 * * *" /usr/local/bin/dns-on.sh
 add_job "0 */3 * * *" /usr/local/bin/update-blocked-ips.sh
 add_job "0 0 * * *" /usr/local/bin/ssh-expiry-check.sh
 add_job "0 0 * * *" /usr/local/bin/ssh-usage-daily.sh
 add_job "0 0 * * *" /usr/local/bin/ssh-usage-telegram.sh
 add_job "0 0 * * *" /usr/local/bin/sync_users_db.sh
-add_job "1 0-21/3 * * *" /usr/local/bin/dns-off.sh
+add_job "2 0-21/3 * * *" /usr/local/bin/dns-off.sh
 add_job "1 0 1 * *" /usr/local/bin/ssh-usage-reset-month.sh
 add_job "2 0 1 * *" /sbin/reboot
 
