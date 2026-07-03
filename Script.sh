@@ -1692,6 +1692,10 @@ elif [ $Cond == 'zNTVIP' ]
 then
 zNTVIP
 
+elif [ $Cond == 'Applex' ]
+then
+Applex
+
 elif [ $Cond == 'Init' ]
 then
 BlockingDomains1
