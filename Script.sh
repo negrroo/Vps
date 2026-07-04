@@ -177,13 +177,14 @@ resolve_record() {
 
     for dns in "${DNS_SERVERS[@]}"; do
 
+        # Added || true to prevent set -e from killing the subshell on timeouts
         timeout "${DNS_TIMEOUT}" \
-        dig @"$dns" +tries="$DNS_RETRIES" +short "$type" "$domain" 2>/dev/null
+        dig @"$dns" +tries="$DNS_RETRIES" +short "$type" "$domain" 2>/dev/null || true
 
     done
 
     timeout "${DNS_TIMEOUT}" \
-    dig +tries="$DNS_RETRIES" +short "$type" "$domain" 2>/dev/null
+    dig +tries="$DNS_RETRIES" +short "$type" "$domain" 2>/dev/null || true
 
 }
 
@@ -325,11 +326,13 @@ fi
 # BLOCK QUIC / HTTP3
 ############################################
 
-if ! nft list ruleset | grep -q "udp dport 443 drop"; then
+if [ "$BLOCK_QUIC" = true ]; then
+  if ! nft list ruleset | grep -q "udp dport 443 drop"; then
 
-  nft insert rule inet "$NFT_TABLE_FILTER" output udp dport 443 drop || true
-  nft insert rule inet "$NFT_TABLE_FILTER" forward udp dport 443 drop || true
+    nft insert rule inet "$NFT_TABLE_FILTER" output udp dport 443 drop || true
+    nft insert rule inet "$NFT_TABLE_FILTER" forward udp dport 443 drop || true
 
+  fi
 fi
 
 ############################################
