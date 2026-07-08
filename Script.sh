@@ -185,18 +185,22 @@ resolve_record() {
 
     local type="$1"
     local domain="$2"
+    local result
 
     for dns in "${DNS_SERVERS[@]}"; do
 
-        # Added || true to prevent set -e from killing the subshell on timeouts
-        timeout "${DNS_TIMEOUT}" \
-        dig @"$dns" +tries="$DNS_RETRIES" +short "$type" "$domain" 2>/dev/null || true
+        result=$(timeout "$DNS_TIMEOUT" \
+            dig @"$dns" +tries="$DNS_RETRIES" +short "$type" "$domain" 2>/dev/null || true)
+
+        if [[ -n "$result" ]]; then
+            echo "$result"
+            return
+        fi
 
     done
 
-    timeout "${DNS_TIMEOUT}" \
-    dig +tries="$DNS_RETRIES" +short "$type" "$domain" 2>/dev/null || true
-
+    timeout "$DNS_TIMEOUT" \
+        dig +tries="$DNS_RETRIES" +short "$type" "$domain" 2>/dev/null || true
 }
 
 ############################################
