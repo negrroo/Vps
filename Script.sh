@@ -136,7 +136,7 @@ DOMAIN_FILE="/etc/block-sites/domains.txt"
 TMP4=$(mktemp)
 TMP6=$(mktemp)
 
-trap 'rm -f "$TMP4" "$TMP6"' EXIT
+trap 'rm -f "$TMP4" "$TMP6" "$HAPROXY_TMP"' EXIT
 
 NFT_TABLE_FILTER="filter"
 NFT_SET4="blocked4"
@@ -286,7 +286,7 @@ done < "$DOMAIN_FILE"
 
 sort -u "$TMP4" -o "$TMP4" 2>/dev/null || true
 sort -u "$TMP6" -o "$TMP6" 2>/dev/null || true
-sort -u "$HAPROXY_BLOCK" -o "$HAPROXY_BLOCK" 2>/dev/null || true
+sort -u "$HAPROXY_TMP" -o "$HAPROXY_TMP" 2>/dev/null || true
 
 ############################################
 # ENSURE NFT TABLE
@@ -349,14 +349,17 @@ if [ "$BLOCK_QUIC" = true ]; then
   fi
 fi
 
+SKIP_NFT=false
+
 if [[ ! -s "$TMP4" && ! -s "$TMP6" ]]; then
 
     log "No IP addresses resolved. Keeping existing nftables sets."
 
-    exit 1
+    SKIP_NFT=true
 
 fi
 
+if [ "$SKIP_NFT" = false ]; then
 ############################################
 # REBUILD NFT SETS
 ############################################
@@ -399,21 +402,21 @@ if [ -s "$TMP6" ]; then
   }
 
 fi
+fi
 
 if ! cmp -s "$HAPROXY_TMP" "$HAPROXY_BLOCK" 2>/dev/null; then
     mv "$HAPROXY_TMP" "$HAPROXY_BLOCK"
 else
     rm -f "$HAPROXY_TMP"
 fi
-
 ############################################
 # HAPROXY SNI BLOCK
 ############################################
 
 if [ -f "$HAPROXY_CFG" ]; then
-cp "$HAPROXY_CFG" "${HAPROXY_CFG}.bak" 2>/dev/null || true
 
   if ! grep -q "blocked_sni.lst" "$HAPROXY_CFG"; then
+cp "$HAPROXY_CFG" "${HAPROXY_CFG}.bak" 2>/dev/null || true
 
     sed -i '/tcp-request inspect-delay/a \
     acl blocked_ssl req.ssl_sni -f /etc/haproxy/blocked_sni.lst\n\
