@@ -117,6 +117,15 @@ sudo tee /usr/local/bin/update-blocked-ips.sh > /dev/null <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 
+LOCKFILE="/var/run/update-blocked-ips.lock"
+
+exec 200>"$LOCKFILE"
+
+flock -n 200 || {
+    echo "Another update-blocked-ips.sh is already running."
+    exit 0
+}
+
 START_TIME=$(date +%s)
 
 TOTAL_DOMAINS=0
@@ -124,8 +133,10 @@ FAILED_DOMAINS=0
 
 DOMAIN_FILE="/etc/block-sites/domains.txt"
 
-TMP4="/tmp/blocksites_ipv4.txt"
-TMP6="/tmp/blocksites_ipv6.txt"
+TMP4=$(mktemp)
+TMP6=$(mktemp)
+
+trap 'rm -f "$TMP4" "$TMP6"' EXIT
 
 NFT_TABLE_FILTER="filter"
 NFT_SET4="blocked4"
@@ -203,7 +214,9 @@ fi
 
 : > "$TMP4"
 : > "$TMP6"
-: > "$HAPROXY_BLOCK"
+HAPROXY_TMP=$(mktemp)
+
+: > "$HAPROXY_TMP"
 
 while IFS= read -r line || [ -n "$line" ]; do
 
@@ -226,7 +239,7 @@ while IFS= read -r line || [ -n "$line" ]; do
 
   TOTAL_DOMAINS=$((TOTAL_DOMAINS+1))
 
-  echo "$d" >> "$HAPROXY_BLOCK"
+  echo "$d" >> "$HAPROXY_TMP"
 
   ##########################################
   # IPV4
@@ -261,6 +274,7 @@ while IFS= read -r line || [ -n "$line" ]; do
     FAILED_DOMAINS=$((FAILED_DOMAINS+1))
 
     log "DNS lookup failed: $d"
+    log "Resolver returned no A or AAAA records."
 
   fi
 
@@ -335,6 +349,14 @@ if [ "$BLOCK_QUIC" = true ]; then
   fi
 fi
 
+if [[ ! -s "$TMP4" && ! -s "$TMP6" ]]; then
+
+    log "No IP addresses resolved. Keeping existing nftables sets."
+
+    exit 1
+
+fi
+
 ############################################
 # REBUILD NFT SETS
 ############################################
@@ -376,6 +398,12 @@ if [ -s "$TMP6" ]; then
 
   }
 
+fi
+
+if ! cmp -s "$HAPROXY_TMP" "$HAPROXY_BLOCK" 2>/dev/null; then
+    mv "$HAPROXY_TMP" "$HAPROXY_BLOCK"
+else
+    rm -f "$HAPROXY_TMP"
 fi
 
 ############################################
@@ -532,7 +560,7 @@ if systemctl list-unit-files 2>/dev/null | grep -q "^systemd-resolved.service"; 
 systemctl stop systemd-resolved 2>/dev/null || true
 systemctl disable systemd-resolved 2>/dev/null || true
 sleep 1
-systemctl restart dnsmasq
+dnsmasq --test >/dev/null 2>&1 && systemctl restart dnsmasq
 fi
 
 echo "DNS blocklist updated"
@@ -1703,13 +1731,13 @@ add_job() {
 }
 
 # SSH jobs
-add_job "58 2-23/3 * * *" /usr/local/bin/dns-on.sh
-add_job "0 */3 * * *" /usr/local/bin/update-blocked-ips.sh
+add_job "59 23 * * *" /usr/local/bin/dns-on.sh
+add_job "0 0 * * *" /usr/local/bin/update-blocked-ips.sh
 add_job "0 0 * * *" /usr/local/bin/ssh-expiry-check.sh
 add_job "0 0 * * *" /usr/local/bin/ssh-usage-daily.sh
 add_job "0 0 * * *" /usr/local/bin/ssh-usage-telegram.sh
 add_job "0 0 * * *" /usr/local/bin/sync_users_db.sh
-add_job "2 0-21/3 * * *" /usr/local/bin/dns-off.sh
+add_job "1 0 * * *" /usr/local/bin/dns-off.sh
 add_job "1 0 1 * *" /usr/local/bin/ssh-usage-reset-month.sh
 add_job "2 0 1 * *" /sbin/reboot
 
