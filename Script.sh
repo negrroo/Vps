@@ -136,6 +136,16 @@ DOMAIN_FILE="/etc/block-sites/domains.txt"
 TMP4=$(mktemp)
 TMP6=$(mktemp)
 
+CACHE_DIR="/var/lib/blocksites"
+
+CACHE4="$CACHE_DIR/ipv4.cache"
+CACHE6="$CACHE_DIR/ipv6.cache"
+
+mkdir -p "$CACHE_DIR"
+
+touch "$CACHE4"
+touch "$CACHE6"
+
 trap 'rm -f "$TMP4" "$TMP6" "$HAPROXY_TMP"' EXIT
 
 NFT_TABLE_FILTER="filter"
@@ -269,9 +279,15 @@ done < "$DOMAIN_FILE"
 # SORT UNIQUE
 ############################################
 
+cat "$CACHE4" >> "$TMP4" 2>/dev/null || true
+cat "$CACHE6" >> "$TMP6" 2>/dev/null || true
+
 sort -u "$TMP4" -o "$TMP4" 2>/dev/null || true
 sort -u "$TMP6" -o "$TMP6" 2>/dev/null || true
 sort -u "$HAPROXY_TMP" -o "$HAPROXY_TMP" 2>/dev/null || true
+
+cp "$TMP4" "$CACHE4"
+cp "$TMP6" "$CACHE6"
 
 ############################################
 # ENSURE NFT TABLE
