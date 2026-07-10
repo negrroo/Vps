@@ -185,22 +185,14 @@ resolve_record() {
 
     local type="$1"
     local domain="$2"
-    local result
-
-    for dns in "${DNS_SERVERS[@]}"; do
-
-        result=$(timeout "$DNS_TIMEOUT" \
-            dig @"$dns" +tries="$DNS_RETRIES" +short "$type" "$domain" 2>/dev/null || true)
-
-        if [[ -n "$result" ]]; then
-            echo "$result"
-            return
-        fi
-
-    done
 
     timeout "$DNS_TIMEOUT" \
         dig +tries="$DNS_RETRIES" +short "$type" "$domain" 2>/dev/null || true
+
+    for dns in "${DNS_SERVERS[@]}"; do
+        timeout "$DNS_TIMEOUT" \
+            dig @"$dns" +tries="$DNS_RETRIES" +short "$type" "$domain" 2>/dev/null || true
+    done
 }
 
 ############################################
@@ -249,31 +241,20 @@ while IFS= read -r line || [ -n "$line" ]; do
   # IPV4
   ##########################################
 
-  ipv4_result="$(resolve_record A "$d")"
-
-  if [ -n "$ipv4_result" ]; then
-
-    echo "$ipv4_result" \
-    | grep -E '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' \
-    >> "$TMP4" || true
-
-  fi
+resolve_record A "$d" \
+| grep -E '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' \
+>> "$TMP4" || true
 
   ##########################################
   # IPV6
   ##########################################
 
-  ipv6_result="$(resolve_record AAAA "$d")"
+resolve_record AAAA "$d" \
+| grep ':' \
+>> "$TMP6" || true
 
-  if [ -n "$ipv6_result" ]; then
-
-    echo "$ipv6_result" \
-    | grep -E ':' \
-    >> "$TMP6" || true
-
-  fi
-
-  if [ -z "$ipv4_result" ] && [ -z "$ipv6_result" ]; then
+  if ! resolve_record A "$d" | grep -qE '^[0-9]+\.' &&
+   ! resolve_record AAAA "$d" | grep -q ':'; then
 
     FAILED_DOMAINS=$((FAILED_DOMAINS+1))
 
