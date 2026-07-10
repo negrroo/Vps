@@ -187,7 +187,7 @@ resolve_record() {
     local domain="$2"
 
     timeout "$DNS_TIMEOUT" \
-        dig +tries="$DNS_RETRIES" +search +short "$type" "$domain" 2>/dev/null || true
+        dig +tries="$DNS_RETRIES" +search +short +answer "$type" "$domain" 2>/dev/null || true
 
     for dns in "${DNS_SERVERS[@]}"; do
         timeout "$DNS_TIMEOUT" \
